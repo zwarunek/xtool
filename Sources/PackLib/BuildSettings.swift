@@ -38,7 +38,11 @@ public struct BuildSettings: Sendable {
     ) async throws {
         self.packagePath = packagePath
         self.configuration = configuration
-        self.customOptions = options
+        // XTOOL_SWIFTPM_FLAGS: extra whitespace-separated SwiftPM arguments (e.g. `-Xlinker -lswiftCore`)
+        // appended to every SwiftPM invocation, for builds that need flags xtool has no option for.
+        let envOptions = ProcessInfo.processInfo.environment["XTOOL_SWIFTPM_FLAGS"]?
+            .split(whereSeparator: \.isWhitespace).map(String.init) ?? []
+        self.customOptions = options + envOptions
         self.triple = triple
         self.buildSystem = if let buildSystem { buildSystem } else { try await .default() }
 
