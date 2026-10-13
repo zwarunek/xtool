@@ -684,6 +684,9 @@ struct SDKBuilder {
         // stub out codesign as /bin/true (SwiftBuild often emits CodeSign tasks, e.g. when
         // building for sim). we sign post-build.
         defaultProperties["CODESIGN"] = "true"
+        // tapi doesn't exist on Linux. Intermediate .tbd stubs are only a link-time optimization, and SwiftBuild
+        // asks for them when it builds a package target dynamically (e.g. to resolve a static-library diamond).
+        defaultProperties["GENERATE_INTERMEDIATE_TEXT_BASED_STUBS"] = "NO"
         plist["DefaultProperties"] = defaultProperties
 
         let newData = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
