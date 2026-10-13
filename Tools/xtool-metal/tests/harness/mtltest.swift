@@ -285,6 +285,17 @@ case "info":
         if !fc.isEmpty { line += " constants=" + fc.values.map { "\($0.name)@\($0.index):\($0.type.rawValue)\($0.required ? "!" : "")" }.sorted().joined(separator: ",") }
         print(line)
     }
+case "check":
+    // Load the library and build a pipeline for every kernel (GPU back-end compile), reporting failures.
+    let lib = loadLib(args[2])
+    var bad = 0
+    for name in lib.functionNames.sorted() {
+        guard let f = lib.makeFunction(name: name) else { print("NOFUNC \(name)"); bad += 1; continue }
+        if f.functionType == .kernel && f.functionConstantsDictionary.values.allSatisfy({ !$0.required }) {
+            do { _ = try dev.makeComputePipelineState(function: f) } catch { print("PIPELINE \(name): \(error)"); bad += 1 }
+        }
+    }
+    print("checked \(lib.functionNames.count) functions, \(bad) failures")
 case "run":
     let c = try! JSONDecoder().decode(Case.self, from: Data(contentsOf: URL(fileURLWithPath: args[3])))
     let out: Data

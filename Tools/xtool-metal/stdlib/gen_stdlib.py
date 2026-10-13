@@ -111,6 +111,13 @@ typedef long int64_t; typedef unsigned long uint64_t;
 #define USHRT_MAX 65535
 #define CHAR_BIT 8
 
+#define METAL_FUNC inline __attribute__((__always_inline__))
+#define METAL_INTERNAL
+#define METAL_ASM
+#define METAL_CONST constexpr
+#define METAL_ENABLE_IF(...)
+namespace simd {}
+namespace metal { namespace raytracing {} namespace precise {} namespace fast {} }
 extern "C" bool __xt_fc_defined(const __global void *) __asm("xt.fc_defined");
 #define is_function_constant_defined(x) __xt_fc_defined((const __global void *)&(x))
 
@@ -135,18 +142,24 @@ for s, *_ in SCALARS:
         w(f'typedef {tname(s, n)} simd_{s}{n if n > 1 else 1};')
 
 w('struct _sampler_t;')
+w('struct _command_buffer_t;')
 for _cls, _op, _d in [('texture1d', 'texture_1d', 1), ('texture1d_array', 'texture_1d_array', 1), ('texture2d', 'texture_2d', 2), ('texture2d_array', 'texture_2d_array', 2), ('texture3d', 'texture_3d', 3), ('texturecube', 'texture_cube', 3), ('texturecube_array', 'texture_cube_array', 3), ('texture2d_ms', 'texture_2d_ms', 2), ('texture2d_ms_array', 'texture_2d_ms_array', 2), ('texture_buffer', 'texture_buffer_1d', 1), ('depth2d', 'depth_2d', 2), ('depth2d_array', 'depth_2d_array', 2), ('depthcube', 'depth_cube', 3), ('depthcube_array', 'depth_cube_array', 3), ('depth2d_ms', 'depth_2d_ms', 2), ('depth2d_ms_array', 'depth_2d_ms_array', 2)]:
     w(f'struct _{_op}_t;')
 w('//@@DECLS@@')
 w(r'''
 namespace __xt {
-template <class T> struct traits { typedef T elem; static constexpr int n = 1; static constexpr bool vec = false; };
-template <class T, int N> struct traits<T __attribute__((ext_vector_type(N)))> { typedef T elem; static constexpr int n = N; static constexpr bool vec = true; };
+template <class T> struct traits { typedef T elem; static constexpr int n = 1; static constexpr bool vec = false; static constexpr bool ext = false; };
+template <class T, int N> struct traits<T __attribute__((ext_vector_type(N)))> { typedef T elem; static constexpr int n = N; static constexpr bool vec = true; static constexpr bool ext = true; };
 template <class T> struct traits<const T> : traits<T> {};
+} // namespace __xt
+namespace metal { template <class T, int N> struct packed_vec; }
+namespace __xt {
+template <class T, int N> struct traits<metal::packed_vec<T, N>> { typedef T elem; static constexpr int n = N; static constexpr bool vec = true; static constexpr bool ext = false; };
 template <class T, int N> struct vt { typedef T type __attribute__((ext_vector_type(N))); };
 template <class T> struct vt<T, 1> { typedef T type; };
 template <bool B, class T = void> struct enable_if {};
 template <class T> struct enable_if<true, T> { typedef T type; };
+template <class T> struct ident { typedef T type; };
 template <class T> struct remove_cv { typedef T type; };
 template <class T> struct remove_cv<const T> { typedef T type; };
 template <class T> struct remove_cv<volatile T> { typedef T type; };
@@ -174,7 +187,7 @@ template <class E, class X> constexpr auto cvt(X x) {
 // Vector construction with MSL semantics: float4(xy, z, w), float3(s), float2(int2)...
 template <class V, class... A> constexpr V __xt_make(A... a) {
   if constexpr (!__xt::traits<V>::vec) return V(a...);
-  else if constexpr (sizeof...(A) == 1 && ((__xt::traits<A>::n == __xt::traits<V>::n) && ...) && __xt::traits<V>::n > 1)
+  else if constexpr (sizeof...(A) == 1 && ((__xt::traits<A>::n == __xt::traits<V>::n && __xt::traits<A>::ext) && ...) && __xt::traits<V>::n > 1)
     return (__xt::cvt<typename __xt::traits<V>::elem>(a), ...);
   else return __xt::make_impl<V>(typename __xt::mkseq<__xt::traits<V>::n>::type(), a...);
 }
@@ -243,6 +256,7 @@ NOFAST = {'fma', 'mix', 'sign', 'dot'}
 math = []
 mw = math.append
 mw('namespace metal {')
+mw('template <class V, class M> inline V select(V a, V b, M c);')
 
 def fsig(fn, ty, n):
     return ', '.join(f'{ty} {"xyz"[i]}' for i in range(n))
@@ -319,7 +333,7 @@ for s in FLOATS:
         mw(f'inline {ty} sign({ty} x) {{ return {air(f"air.sign.{sf}", ty, [ty])}(x); }}')
         for dn in ('dfdx', 'dfdy', 'fwidth'):
             mw(f'inline {ty} {dn}({ty} x) {{ return {air(f"air.{dn}.{sf}", ty, [ty], pure=False)}(x); }}')
-        mw(f'inline {ty} step({ty} e, {ty} x) {{ return __xt_make<{ty}>(x >= e) * ({s})(-1); }}' if n > 1 else
+        mw(f'inline {ty} step({ty} e, {ty} x) {{ return select(({ty})({s})0, ({ty})({s})1, x >= e); }}' if n > 1 else
            f'inline {ty} step({ty} e, {ty} x) {{ return x >= e ? ({s})1 : ({s})0; }}')
         if n > 1:
             mw(f'inline {ty} step({s} e, {ty} x) {{ return step({ty}(e), x); }}')
@@ -433,7 +447,11 @@ template <class T, int C, int R> struct matrix {
   template <class... A, typename __xt::enable_if<sizeof...(A) == C && C != 1, int>::type = 0>
   constexpr matrix(A... cols) : columns{static_cast<col_t>(cols)...} {}
   template <class... A, typename __xt::enable_if<sizeof...(A) == C * R && C * R != C, long>::type = 0>
-  matrix(A... s) { T v[] = {static_cast<T>(s)...}; for (int i = 0; i < C * R; ++i) columns[i / R][i % R] = v[i]; }
+  constexpr matrix(A... s) : matrix(typename __xt::mkseq<C>::type(), s...) {}
+  template <int... I, class... A>
+  constexpr matrix(__xt::seq<I...>, A... s) : columns{__col<I * R>(typename __xt::mkseq<R>::type(), s...)...} {}
+  template <int B, int... J, class... A>
+  static constexpr col_t __col(__xt::seq<J...>, A... s) { col_t c = {__xt::get<T, B + J>(s...)...}; return c; }
   template <class U> constexpr explicit matrix(const matrix<U, C, R> &o) : columns{} { for (int i = 0; i < C; ++i) columns[i] = __builtin_convertvector(o.columns[i], col_t); }
   col_t &operator[](int i) { return columns[i]; }
   const col_t &operator[](int i) const { return columns[i]; }
@@ -453,8 +471,12 @@ template <class T, int K, int C, int R> inline matrix<T, C, R> operator*(matrix<
   for (int i = 0; i < C; ++i) r.columns[i] = a * b.columns[i];
   return r;
 }
-template <class T, int C, int R> inline matrix<T, C, R> operator*(matrix<T, C, R> a, T s) { for (int i = 0; i < C; ++i) a.columns[i] *= s; return a; }
-template <class T, int C, int R> inline matrix<T, C, R> operator*(T s, matrix<T, C, R> a) { return a * s; }
+template <class T, int C, int R> inline matrix<T, C, R> operator*(matrix<T, C, R> a, typename __xt::ident<T>::type s) { for (int i = 0; i < C; ++i) a.columns[i] *= s; return a; }
+template <class T, int C, int R> inline matrix<T, C, R> operator*(typename __xt::ident<T>::type s, matrix<T, C, R> a) { return a * s; }
+template <class T, int C, int R> inline matrix<T, C, R> operator/(matrix<T, C, R> a, typename __xt::ident<T>::type s) { for (int i = 0; i < C; ++i) a.columns[i] /= s; return a; }
+template <class T, int C, int R> inline matrix<T, C, R> operator-(matrix<T, C, R> a) { for (int i = 0; i < C; ++i) a.columns[i] = -a.columns[i]; return a; }
+template <class T, int C, int R> inline matrix<T, C, R> &operator*=(matrix<T, C, R> &a, typename __xt::ident<T>::type s) { a = a * s; return a; }
+template <class T, int C, int R> inline matrix<T, C, R> &operator+=(matrix<T, C, R> &a, matrix<T, C, R> b) { a = a + b; return a; }
 template <class T, int C, int R> inline matrix<T, C, R> operator+(matrix<T, C, R> a, matrix<T, C, R> b) { for (int i = 0; i < C; ++i) a.columns[i] += b.columns[i]; return a; }
 template <class T, int C, int R> inline matrix<T, C, R> operator-(matrix<T, C, R> a, matrix<T, C, R> b) { for (int i = 0; i < C; ++i) a.columns[i] -= b.columns[i]; return a; }
 template <class T, int C, int R> inline typename __xt::vt<T, C>::type &operator*=(typename __xt::vt<T, C>::type &v, matrix<T, C, R> m) { v = v * m; return v; }
@@ -594,6 +616,11 @@ def tex_suffix_expr():
 
 # Element type dispatch: each texture method computes the AIR suffix from T.
 w(r'''
+template <class T> struct sparse_color {
+  T __v; bool __r;
+  T value() const { return __v; }
+  bool resident() const { return __r; }
+};
 template <class T> struct __texel;
 template <> struct __texel<float> { typedef float4 v4; };
 template <> struct __texel<half> { typedef half4 v4; };
@@ -695,8 +722,8 @@ for cls, op, d in TEX:
                 tw(f'  {rt} sample({", ".join(ps)}) const {{ ' + ' else '.join(body) + ' }')
         if depth:
             # sample_compare
-            for opts in ['', 'level']:
-                ps = ['sampler s', f'{coordty(d)} c'] + (['uint slice'] if arr else []) + ['float ref'] + (['level o'] if opts else [])
+            for opts, withoff in [('', False), ('level', False)] + ([] if cube else [('', True), ('level', True)]):
+                ps = ['sampler s', f'{coordty(d)} c'] + (['uint slice'] if arr else []) + ['float ref'] + (['level o'] if opts else []) + ([f'{ioffty(d)} off'] if withoff else [])
                 body = []
                 for et, sf, vt in elems:
                     name = f'air.sample_compare_{op}.{sf}'
@@ -707,7 +734,7 @@ for cls, op, d in TEX:
                     c = air('xt.sret.' + name, et, args, pure=False)
                     call = ['__t', 's.__ptr()', '1', 'c'] + (['slice'] if arr else []) + ['ref']
                     if not cube:
-                        call += ['true', f'({ioffty(d)})0']
+                        call += ['true', 'off' if withoff else f'({ioffty(d)})0']
                     call += ['true' if opts else 'false', 'o.v' if opts else '0.0f', '0.0f', '0']
                     body.append(f'if constexpr (__is_same(T, {et})) return {c}({", ".join(call)});')
                 tw(f'  T sample_compare({", ".join(ps)}) const {{ ' + ' else '.join(body) + ' }')
@@ -726,6 +753,17 @@ for cls, op, d in TEX:
                 body.append(f'if constexpr (__is_same(T, {et})) return {c}({", ".join(call)});')
             gret = 'typename __texel<T>::v4' if not depth else 'vec<T, 4>'
             tw(f'  {gret} gather({", ".join(ps)}) const {{ ' + ' else '.join(body) + ' }')
+    if cls == 'texture2d':
+        for opts in ('', 'level'):
+            ps = ['sampler s', 'float2 c'] + (['level o'] if opts else [])
+            body = []
+            for et, sf, vt in elems:
+                name = f'air.sample_{op}.{sf}'
+                args = [T, '__constant _sampler_t *', 'float2', 'bool', 'int2', 'bool', 'float', 'float', 'int', 'uchar *']
+                c = air('xt.sparse.' + name, vt, args, pure=False)
+                call = ['__t', 's.__ptr()', 'c', 'true', 'int2(0)', 'true' if opts else 'false', 'o.v' if opts else '0.0f', '0.0f', '0', '&r']
+                body.append(f'if constexpr (__is_same(T, {et})) {{ uchar r; {vt} v = {c}({", ".join(call)}); return sparse_color<{vt}>{{v, (r & 1) == 0}}; }}')
+            tw(f'  sparse_color<typename __texel<T>::v4> sparse_sample({", ".join(ps)}) const {{ ' + ' else '.join(body) + ' }')
     # read
     for cbase in (['uint', 'ushort'] if d > 1 and not buf and not cube else ['uint']):
         cd = 2 if cube else d
@@ -799,6 +837,36 @@ for cls, op, d in TEX:
     tw('};')
     tw(f'template <class T, access A> inline bool is_null_texture({cls}<T, A> t) {{ return t.__is_null(); }}')
 w('\n'.join(texcode))
+w('} // namespace metal')
+
+# ------------------------------------------------------------------------------------------------- rate maps, indirect command buffers
+w('namespace metal {')
+w('struct [[clang::annotate("xt.opaque_buffer")]] rasterization_rate_map_data { char __opaque; };')
+c1 = air('air.map_screen_to_physical_coordinates.v2f32.p2i8.i32', 'float2', ['float2', 'const __attribute__((address_space(2))) char *', 'uint'])
+c2 = air('air.map_physical_to_screen_coordinates.v2f32.p2i8.i32', 'float2', ['float2', 'const __attribute__((address_space(2))) char *', 'uint'])
+w(f'''struct rasterization_rate_map_decoder {{
+  const __attribute__((address_space(2))) char *__p;
+  rasterization_rate_map_decoder(const __attribute__((address_space(2))) rasterization_rate_map_data &d) : __p((const __attribute__((address_space(2))) char *)&d) {{}}
+  float2 map_screen_to_physical_coordinates(float2 c, uint layer = 0) const {{ return {c1}(c, __p, layer); }}
+  float2 map_physical_to_screen_coordinates(float2 c, uint layer = 0) const {{ return {c2}(c, __p, layer); }}
+}};''')
+w('enum class primitive_type { point = 0, line = 1, line_strip = 2, triangle = 3, triangle_strip = 4 };')
+CB = '__global _command_buffer_t *'
+c_vb = air('air.set_vertex_buffer_render_command.p1i8', 'void', [CB, 'uint', '__global void *', 'long', 'uint'], pure=False)
+c_fb = air('air.set_fragment_buffer_render_command.p1i8', 'void', [CB, 'uint', '__global void *', 'long', 'uint'], pure=False)
+c_dp = air('air.draw_primitives_render_command', 'void', [CB, 'uint', 'uint', 'uint', 'uint', 'uint', 'uint'], pure=False)
+c_rs = air('air.reset_render_command', 'void', [CB, 'uint'], pure=False)
+w(f'''struct [[clang::annotate("xt.resource:command_buffer:_command_buffer_t:1")]] command_buffer {{ {CB}__c; uint size() const; }};
+struct render_command {{
+  {CB}__c; uint __i;
+  render_command(command_buffer cb, uint i) : __c(cb.__c), __i(i) {{}}
+  template <class T> void set_vertex_buffer(__global T *b, uint index) {{ {c_vb}(__c, __i, (__global void *)b, -1, index); }}
+  template <class T> void set_vertex_buffer(const __global T *b, uint index) {{ {c_vb}(__c, __i, (__global void *)b, -1, index); }}
+  template <class T> void set_fragment_buffer(__global T *b, uint index) {{ {c_fb}(__c, __i, (__global void *)b, -1, index); }}
+  template <class T> void set_fragment_buffer(const __global T *b, uint index) {{ {c_fb}(__c, __i, (__global void *)b, -1, index); }}
+  void draw_primitives(primitive_type t, uint vstart, uint vcount, uint icount, uint ibase) {{ {c_dp}(__c, __i, (uint)t, vstart, vcount, icount, ibase); }}
+  void reset() {{ {c_rs}(__c, __i); }}
+}};''')
 w('} // namespace metal')
 
 # ------------------------------------------------------------------------------------------------- compute, sync, atomics, simd
@@ -944,7 +1012,18 @@ hdr = '\n'.join(out)
 hdr = hdr.replace('//@@DECLS@@', '\n'.join(decls[k] for k in decls))
 
 os.makedirs(OUT, exist_ok=True)
-open(os.path.join(OUT, 'metal_stdlib'), 'w').write(hdr)
+# Split: macros stay in <metal_stdlib> (they must expand during preprocessing); everything else goes to
+# <__xt_metal_impl.h>, which the driver precompiles once and skips (-D__XT_PP) when preprocessing user code.
+pub, impl = [], []
+for line in hdr.split('\n'):
+    if line.startswith('#define ') and not line.startswith('#define __XT_METAL_STDLIB'):
+        pub.append(line)
+    else:
+        impl.append(line)
+open(os.path.join(OUT, '__xt_metal_impl.h'), 'w').write('\n'.join(impl) + '\n')
+open(os.path.join(OUT, 'metal_stdlib'), 'w').write(
+    '// Generated by gen_stdlib.py.\n#ifndef __XT_METAL_STDLIB_PUBLIC\n#define __XT_METAL_STDLIB_PUBLIC\n' +
+    '\n'.join(pub) + '\n#ifndef __XT_PP\n#include <__xt_metal_impl.h>\n#endif\n#endif\n')
 for alias in ['metal_math', 'metal_common', 'metal_geometric', 'metal_relational', 'metal_integer', 'metal_texture',
               'metal_compute', 'metal_atomic', 'metal_simdgroup', 'metal_matrix', 'metal_types', 'metal_graphics',
               'metal_pack', 'metal_numeric', 'metal_utility', 'metal_array', 'metal_limits', 'metal_type_traits']:

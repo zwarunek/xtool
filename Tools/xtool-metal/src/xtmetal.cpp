@@ -21,6 +21,7 @@
 #include "clang/CodeGen/CodeGenAction.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/CompilerInvocation.h"
+#include "clang/Frontend/FrontendActions.h"
 #include "clang/Frontend/MultiplexConsumer.h"
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -175,7 +176,12 @@ struct FunctionConstant {
   unsigned vec;
 };
 
+static int gAirMinor = 4; // AIR minor version of the target, set before parsing
+
 struct CollectResult {
+  std::vector<std::string> predicates; // function constants used as [[function_constant(x)]] argument predicates
+  std::vector<std::pair<std::string, std::string>> derived; // (global, name) constants computed from function constants
+  std::vector<std::string> fcInits;  // functions that compute them
   std::vector<EntryDesc> entries;
   std::vector<FunctionConstant> constants;
   bool error = false;
@@ -649,7 +655,10 @@ public:
         else if (findAttr(attrs, "invariant") && findAttr(attrs, "position")) m.add("air.position").add("air.invariant");
         else m.add("air.vertex_output").add(varyingName(attrs, F));
       } else if (kind == EntryKind::Fragment && isInput) {
-        if (findAttr(attrs, "position")) { m.add("air.position"); interpolation(attrs, FT, m, true); }
+        if (auto *c = findAttr(attrs, "color")) {
+          m.add("air.render_target").addi(c->ints.empty() ? 0 : c->ints[0]);
+          if (auto *rog = findAttr(attrs, "raster_order_group")) m.add("air.raster_order_group").addi(rog->ints.empty() ? 0 : rog->ints[0]);
+        } else if (findAttr(attrs, "position")) { m.add("air.position"); interpolation(attrs, FT, m, true); }
         else if (findAttr(attrs, "render_target_array_index")) m.add("air.render_target_array_index");
         else if (findAttr(attrs, "viewport_array_index")) m.add("air.viewport_array_index");
         else if (findAttr(attrs, "point_size") || findAttr(attrs, "clip_distance")) continue;
@@ -658,6 +667,7 @@ public:
         if (auto *c = findAttr(attrs, "color")) {
           auto *ix = findAttr(attrs, "index");
           m.add("air.render_target").addi(c->ints.empty() ? 0 : c->ints[0]).addi(ix && !ix->ints.empty() ? ix->ints[0] : 0);
+          if (auto *rog = findAttr(attrs, "raster_order_group")) m.add("air.raster_order_group").addi(rog->ints.empty() ? 0 : rog->ints[0]);
         } else if (auto *d = findAttr(attrs, "depth")) {
           std::string q = d->strs.empty() ? "any" : d->strs[0];
           m.add("air.depth").add("air.depth_qualifier").add("air." + q);
@@ -666,17 +676,36 @@ public:
         else { error(F->getLocation(), "fragment output field '" + fn + "' needs [[color(n)]], [[depth]] or [[sample_mask]]"); continue; }
       }
       m.add("air.arg_type_name").add(tn).add("air.arg_name").add(fn);
-      ff.md = m;
+      ff.md = withPredicate(attrs, m);
       out.push_back(ff);
     }
     (void)loc;
+  }
+
+  // [[function_constant(name)]] on an argument: "air.function_constant" plus the predicate global, after
+  // the argument index (inputs) or first (outputs).
+  MD withPredicate(const std::vector<AttrInfo> &attrs, MD m) {
+    auto *fc = findAttr(attrs, "function_constant");
+    if (!fc || fc->strs.empty()) return m;
+    std::string name = fc->strs[0];
+    size_t idx = 0;
+    for (; idx < R.predicates.size(); ++idx) if (R.predicates[idx] == name) break;
+    if (idx == R.predicates.size()) R.predicates.push_back(name);
+    MD pred = MD::node({MD::global("__metal_implicit_fc_pred_" + std::to_string(idx)), MD::str("bool"), MD::str(name)});
+    MD out = MD::node();
+    size_t at = (!m.kids.empty() && m.kids[0].kind == MD::I32) ? 1 : 0;
+    for (size_t i = 0; i < m.kids.size(); ++i) {
+      if (i == at) { out.add("air.function_constant"); out.add(pred); }
+      out.add(m.kids[i]);
+    }
+    return out;
   }
 
   void buildEntry(const ca::FunctionDecl *FD, EntryKind kind, const std::vector<AttrInfo> &fattrs) {
     EntryDesc E;
     E.kind = kind;
     E.mangled = mangle(FD);
-    E.name = FD->getName().str();
+    E.name = FD->getQualifiedNameAsString(); // Apple names namespaced entry points "ns::name"
     if (auto *hn = findAttr(fattrs, "host_name")) if (!hn->strs.empty()) E.name = hn->strs[0];
     E.stitchable = findAttr(fattrs, "stitchable") != nullptr;
     int airIndex = 0;
@@ -689,7 +718,9 @@ public:
       ArgDesc A;
       ResourceInfo ri;
       ca::QualType CT = T.getCanonicalType();
-      if (findAttr(attrs, "stage_in")) {
+      bool fbStruct = kind == EntryKind::Fragment && attrs.empty() && CT->getAsRecordDecl() && !templateArgs(CT) &&
+                      !resourceInfo(CT, ri) && !CT->getAs<ca::ExtVectorType>();
+      if (findAttr(attrs, "stage_in") || fbStruct) {
         auto *RD = CT->getAsRecordDecl();
         if (!RD) { error(P->getLocation(), "[[stage_in]] requires a struct"); continue; }
         A.kind = ArgKind::Memory;
@@ -708,6 +739,7 @@ public:
         if (resourceInfo(CT, ri)) {
           A.kind = ArgKind::Memory; A.isResource = true; A.size = sizeOf(CT); A.align = alignOf(CT);
           ff.type.isPtr = true; ff.type.opaque = "struct." + ri.opaque; ff.type.addrSpace = ri.as;
+          if (E.stitchable) A.stitchStructBase = "_ZN5metal22_stitching_traits_implI" + mangleCode(CT) + "E";
         } else if (auto *SRD = CT->getAsRecordDecl(); SRD && !CT->getAs<ca::ExtVectorType>()) {
           // Struct arguments (e.g. SwiftUI::Layer) are passed as one AIR argument per field.
           airIndex--;
@@ -729,10 +761,11 @@ public:
           }
           E.args.push_back(A);
           continue;
-        } else if (!CT->isPointerType() && !CT->isReferenceType()) {
-          if (!valueType(CT, ff.type)) {
-            A.kind = ArgKind::Memory; A.size = sizeOf(CT); A.align = alignOf(CT);
-          }
+        } else if (CT->isPointerType() || CT->isReferenceType()) {
+          ff.type.isPtr = true; // passed through with the user function's IR type
+        } else if (!valueType(CT, ff.type)) {
+          error(P->getLocation(), "unsupported visible function parameter type");
+          continue;
         }
         A.fields.push_back(ff);
         E.args.push_back(A);
@@ -765,8 +798,10 @@ public:
         m.add("air.location_index").addi(loc).addi(1);
         bool ro = isConstantAS(Pt.getAddressSpace()) || Pt.isConstQualified();
         m.add(ro ? "air.read" : "air.read_write");
-        if (PRD && (!templateArgs(Pt) || mslName(Pt) == "metal::_atomic")) m.add("air.struct_type_info").add(structInfo(PRD, indirect));
-        m.add("air.arg_type_size").addi(sizeOf(Pt)).add("air.arg_type_align_size").addi(alignOf(Pt));
+        if (gAirMinor >= 6 && !indirect) m.add("air.address_space").addi(airAS(Pt.getAddressSpace()));
+        bool opaque = PRD && PRD->hasAttrs() && [&] { for (auto *A : PRD->specific_attrs<ca::AnnotateAttr>()) if (A->getAnnotation() == "xt.opaque_buffer") return true; return false; }();
+        if (PRD && !opaque && (!templateArgs(Pt) || mslName(Pt) == "metal::_atomic")) m.add("air.struct_type_info").add(structInfo(PRD, indirect));
+        if (!opaque) m.add("air.arg_type_size").addi(sizeOf(Pt)).add("air.arg_type_align_size").addi(alignOf(Pt));
         m.add("air.arg_type_name").add(mslName(Pt)).add("air.arg_name").add(pname);
         ff.type.isPtr = true; // passed through with the user function's IR type
       } else {
@@ -775,11 +810,13 @@ public:
         if (attrs.empty()) { error(P->getLocation(), "entry point parameter '" + pname + "' has no attribute"); continue; }
         const AttrInfo &a = attrs[0];
         if (kind == EntryKind::Fragment && a.name == "position") { m.add("air.position"); interpolation(attrs, CT, m, true); }
-        else if (kind == EntryKind::Fragment && a.name == "color") m.add("air.render_target").addi(a.ints.empty() ? 0 : a.ints[0]);
-        else m.add("air." + a.name);
+        else if (kind == EntryKind::Fragment && a.name == "color") {
+          m.add("air.render_target").addi(a.ints.empty() ? 0 : a.ints[0]);
+          if (auto *rog = findAttr(attrs, "raster_order_group")) m.add("air.raster_order_group").addi(rog->ints.empty() ? 0 : rog->ints[0]);
+        } else m.add("air." + a.name);
         m.add("air.arg_type_name").add(mslName(CT)).add("air.arg_name").add(pname);
       }
-      ff.md = m;
+      ff.md = withPredicate(attrs, m);
       A.fields.push_back(ff);
       E.args.push_back(A);
     }
@@ -820,6 +857,7 @@ public:
     if (!FD->doesThisDeclarationHaveABody()) return;
     if (FD->isDependentContext()) return;
     auto attrs = airAttrs(FD, Ctx);
+    if (findAttr(attrs, "fc_init")) { R.fcInits.push_back(mangle(FD)); return; }
     for (auto &a : attrs) {
       EntryKind k;
       if (a.name == "vertex") k = EntryKind::Vertex;
@@ -836,6 +874,7 @@ public:
 
   void visitVar(const ca::VarDecl *VD) {
     auto attrs = airAttrs(VD, Ctx);
+    if (findAttr(attrs, "fc_derived")) { R.derived.push_back({mangle(VD), VD->getName().str()}); return; }
     auto *fc = findAttr(attrs, "function_constant");
     if (!fc) return;
     FunctionConstant c;
@@ -852,6 +891,7 @@ public:
 
   void walk(const ca::DeclContext *DC) {
     for (auto *D : DC->decls()) {
+      if (D->isFromASTFile()) continue; // the precompiled standard library
       if (auto *NS = dyn_cast<ca::NamespaceDecl>(D)) { if (NS->getName() != "metal" && NS->getName() != "__xt") walk(NS); continue; }
       if (auto *LS = dyn_cast<ca::LinkageSpecDecl>(D)) { walk(LS); continue; }
       if (auto *FT = dyn_cast<ca::FunctionTemplateDecl>(D)) {
@@ -1331,6 +1371,32 @@ static void stripAnnotations(Module &M) {
 }
 
 
+// Sparse samples: "xt.sparse.<air name>"(args..., i8* residency) -> <air name>(args...) returning { texel, i8 }.
+static void lowerSparseIntrinsics(Module &M) {
+  std::vector<Function *> decls;
+  for (Function &F : M)
+    if (F.isDeclaration() && F.getName().startswith("xt.sparse.")) decls.push_back(&F);
+  for (Function *F : decls) {
+    std::string air = F->getName().drop_front(10).str();
+    auto params = F->getFunctionType()->params();
+    std::vector<Type *> ps(params.begin(), params.end() - 1);
+    Type *RT = StructType::get(M.getContext(), {F->getReturnType(), Type::getInt8Ty(M.getContext())});
+    FunctionCallee callee = M.getOrInsertFunction(air, FunctionType::get(RT, ps, false));
+    std::vector<CallInst *> calls;
+    for (User *U : F->users()) if (auto *CI = dyn_cast<CallInst>(U)) calls.push_back(CI);
+    for (CallInst *CI : calls) {
+      IRBuilder<> B(CI);
+      std::vector<Value *> args(CI->arg_begin(), CI->arg_end() - 1);
+      CallInst *NC = B.CreateCall(callee, args);
+      Value *res = CI->getArgOperand(CI->arg_size() - 1);
+      B.CreateStore(B.CreateExtractValue(NC, 1), B.CreateBitCast(res, PointerType::get(B.getInt8Ty(), res->getType()->getPointerAddressSpace())));
+      CI->replaceAllUsesWith(B.CreateExtractValue(NC, 0));
+      CI->eraseFromParent();
+    }
+    if (F->use_empty()) F->eraseFromParent();
+  }
+}
+
 // Texture reads/samples are declared in the stdlib as "xt.sret.<air name>" returning the texel; AIR returns
 // { texel, i8 }. Rewrite the calls.
 static void lowerSretIntrinsics(Module &M) {
@@ -1457,7 +1523,13 @@ static void lowerFunctionConstantQueries(Module &M) {
 static void replacePointerAS(Value *Old, Value *New) {
   std::vector<User *> users(Old->user_begin(), Old->user_end());
   for (User *U : users) {
-    if (auto *LI = dyn_cast<LoadInst>(U)) {
+    if (auto *SI = dyn_cast<StoreInst>(U)) {
+      if (SI->getPointerOperand() == Old) {
+        IRBuilder<> B(SI);
+        B.CreateStore(SI->getValueOperand(), New)->setAlignment(SI->getAlign());
+        SI->eraseFromParent();
+      }
+    } else if (auto *LI = dyn_cast<LoadInst>(U)) {
       IRBuilder<> B(LI);
       LoadInst *NL = B.CreateLoad(LI->getType(), New);
       NL->setAlignment(LI->getAlign());
@@ -1613,7 +1685,8 @@ static void cleanupForAir(Module &M) {
 }
 
 static int cmdCompile(int argc, char **argv) {
-  std::string input, output, triple = "air64-apple-ios15.0-simulator", source, diag;
+  std::string input, output, triple = "air64-apple-ios15.0-simulator", source, diag, pch;
+  bool emitPch = false;
   bool fastMath = false;
   int sdkMaj = 26, sdkMin = 5;
   std::vector<std::string> extra;
@@ -1624,6 +1697,8 @@ static int cmdCompile(int argc, char **argv) {
     else if (a == "--source") source = argv[++i];
     else if (a == "--fast-math") fastMath = true;
     else if (a == "--diag") diag = argv[++i];
+    else if (a == "--pch") pch = argv[++i];
+    else if (a == "--emit-pch") emitPch = true;
     else if (a == "--sdk-version") {
       std::string v = argv[++i];
       sdkMaj = atoi(v.c_str());
@@ -1638,7 +1713,7 @@ static int cmdCompile(int argc, char **argv) {
   std::vector<std::string> args = {"-triple", "spir64-unknown-unknown", "-emit-llvm-only", "-O2", "-disable-llvm-passes",
                                    "-x", "clcpp", "-cl-std=clc++2021", "-cl-ext=+cl_khr_fp16,+cl_khr_fp64,+__opencl_c_fp64,+__opencl_c_generic_address_space,+__opencl_c_program_scope_global_variables,+__opencl_c_images,+__opencl_c_read_write_images,+__opencl_c_atomic_order_seq_cst,+__opencl_c_atomic_scope_device",
                                    "-cl-single-precision-constant", "-cl-fp32-correctly-rounded-divide-sqrt", "-no-opaque-pointers", "-fno-builtin", "-ffreestanding",
-                                   "-fno-signed-char", "-Wno-user-defined-literals", "-Wno-unused-value",
+                                   "-fno-signed-char", "-Wno-user-defined-literals", "-Wno-unused-value", "-Wno-duplicate-decl-specifier",
                                    "-ferror-limit", "50"};
   if (fastMath) {
     // No -mreassociate: our pipeline must not reassociate (Apple's front end keeps expression order and leaves
@@ -1650,6 +1725,12 @@ static int cmdCompile(int argc, char **argv) {
     args.push_back("-ffp-contract=on");
   }
   if (!diag.empty()) { args.push_back("-serialize-diagnostic-file"); args.push_back(diag); }
+  if (!pch.empty()) { args.push_back("-include-pch"); args.push_back(pch); }
+  if (emitPch) {
+    for (auto &a : args) if (a == "-emit-llvm-only") a = "-emit-pch";
+    args.push_back("-o");
+    args.push_back(output);
+  }
   for (auto &e : extra) args.push_back(e);
   args.push_back(input);
   std::vector<const char *> cargs;
@@ -1667,6 +1748,14 @@ static int cmdCompile(int argc, char **argv) {
   if (!diag.empty()) CI->getDiagnosticOpts().DiagnosticSerializationFile = diag;
   CI->createDiagnostics(new ca::TextDiagnosticPrinter(errs(), &CI->getDiagnosticOpts()), true);
 
+  if (emitPch) {
+    ca::GeneratePCHAction pchAct;
+    return CI->ExecuteAction(pchAct) ? 0 : 1;
+  }
+  {
+    std::string os0; int a0, b0; bool s0;
+    if (parseTriple(triple, os0, a0, b0, s0)) gAirMinor = versionsFor(os0, a0, b0).airMin;
+  }
   LLVMContext Ctx;
   CollectResult R;
   XtAction act(&Ctx, R);
@@ -1682,6 +1771,7 @@ static int cmdCompile(int argc, char **argv) {
 
   M->setDataLayout(kAirDataLayout);
   stripAnnotations(*M);
+  lowerSparseIntrinsics(*M);
   // Everything but entry points gets inlined; MSL has no recursion or function pointers.
   for (Function &F : *M) {
     if (F.isDeclaration()) continue;
@@ -1700,7 +1790,7 @@ static int cmdCompile(int argc, char **argv) {
       for (auto &p : lowered) if (p.second == &F) isEntry = true;
       if (!isEntry) F.setLinkage(GlobalValue::InternalLinkage);
     }
-  std::vector<Constant *> keep;
+  std::vector<GlobalValue *> keep;
   for (auto &E : R.entries) for (auto &st : E.stitchTypes)
     for (const char *suffix : {"13load_argumentEPv", "7destroyEPv", "16copy_from_bufferEPvPU11MTLconstantKv"})
       if (Function *F = M->getFunction(st.first + suffix)) keep.push_back(F);
@@ -1708,14 +1798,12 @@ static int cmdCompile(int argc, char **argv) {
   std::vector<Constant *> keepCasts;
   for (auto *k : keep) keepCasts.push_back(ConstantExpr::getBitCast(k, Type::getInt8PtrTy(Ctx)));
   if (!keepCasts.empty()) {
-    auto *AT = ArrayType::get(Type::getInt8PtrTy(Ctx), keepCasts.size());
-    auto *G = new GlobalVariable(*M, AT, false, GlobalValue::AppendingLinkage, ConstantArray::get(AT, keepCasts), "llvm.compiler.used");
-    G->setSection("llvm.metadata");
+    appendToCompilerUsed(*M, keep.empty() ? std::vector<GlobalValue *>() : std::vector<GlobalValue *>(keep.begin(), keep.end()));
   }
   // Function constants, the way Apple's compiler lays them out: code reads an internal addrspace(2) global
   // "_ZL<name>"; a static initializer (section air.static_init) copies the specialized value from the
   // externally initialized "<mangled>.MTL_FC_INIT_<index>_<code>" global listed in !air.function_constants.
-  if (!R.constants.empty()) {
+  if (!R.constants.empty() || !R.derived.empty()) {
     LLVMContext &C = M->getContext();
     FunctionCallee isDefined = M->getOrInsertFunction("air.is_function_constant_defined",
         FunctionType::get(Type::getInt1Ty(C), {Type::getInt8PtrTy(C, 2)}, false));
@@ -1758,8 +1846,41 @@ static int cmdCompile(int argc, char **argv) {
       if (G->use_empty()) G->eraseFromParent();
       FC.var = initName; // for the metadata below
     }
+    std::map<std::string, GlobalVariable *> byName;
+    for (auto &FC : R.constants)
+      if (auto *V = M->getGlobalVariable("_ZL" + std::to_string(FC.name.size()) + FC.name, true)) byName[FC.name] = V;
+    for (auto &D : R.derived) {
+      GlobalVariable *G = M->getGlobalVariable(D.first, true);
+      if (!G) continue;
+      auto *V = new GlobalVariable(*M, G->getValueType(), false, GlobalValue::InternalLinkage, UndefValue::get(G->getValueType()),
+                                   "_ZL" + std::to_string(D.second.size()) + D.second, nullptr, GlobalValue::NotThreadLocal, 2);
+      V->setAlignment(G->getAlign() ? *G->getAlign() : Align(4));
+      replacePointerAS(G, V);
+      if (G->use_empty()) G->eraseFromParent();
+      byName[D.second] = V;
+    }
+    for (auto &fn : R.fcInits)
+      if (Function *F = M->getFunction(fn)) IB.CreateCall(F);
+    FunctionCallee normalize = M->getOrInsertFunction("air.normalize_function_constant_predicate.i8",
+        FunctionType::get(Type::getInt8Ty(C), {Type::getInt8Ty(C)}, false));
+    std::vector<Constant *> used;
+    for (size_t p = 0; p < R.predicates.size(); ++p) {
+      auto *P = new GlobalVariable(*M, Type::getInt8Ty(C), false, GlobalValue::InternalLinkage,
+                                   ConstantInt::get(Type::getInt8Ty(C), 0), "__metal_implicit_fc_pred_" + std::to_string(p),
+                                   nullptr, GlobalValue::NotThreadLocal, 2);
+      P->setAlignment(Align(1));
+      auto it = byName.find(R.predicates[p]);
+      if (it == byName.end()) die("[[function_constant(" + R.predicates[p] + ")]] does not name a function constant");
+      Value *v = IB.CreateLoad(it->second->getValueType(), it->second);
+      if (v->getType() != Type::getInt8Ty(C)) v = IB.CreateZExtOrTrunc(v, Type::getInt8Ty(C));
+      IB.CreateStore(IB.CreateCall(normalize, {v}), P);
+      used.push_back(P);
+    }
     IB.CreateRetVoid();
     appendToGlobalCtors(*M, Init, 65535);
+    std::vector<GlobalValue *> usedGV;
+    for (auto *c : used) usedGV.push_back(cast<GlobalValue>(c->stripPointerCasts()));
+    if (!usedGV.empty()) appendToCompilerUsed(*M, usedGV);
   }
 
   runPasses(*M, true);
@@ -1922,12 +2043,12 @@ static int cmdLink(int argc, char **argv) {
     }
     // Keep only the compiler.used entries (stitching trait helpers) that this entry's metadata references.
     if (GlobalVariable *U = Clone->getGlobalVariable("llvm.compiler.used")) {
-      std::set<Function *> referenced;
+      std::set<GlobalValue *> referenced;
       std::function<void(const MDNode *)> scan = [&](const MDNode *N) {
         for (const MDOperand &O : N->operands()) {
           if (!O) continue;
           if (auto *VM = dyn_cast<ValueAsMetadata>(O.get()))
-            if (auto *RF = dyn_cast<Function>(VM->getValue()->stripPointerCasts())) referenced.insert(RF);
+            if (auto *RF = dyn_cast<GlobalValue>(VM->getValue()->stripPointerCasts())) referenced.insert(RF);
           if (auto *Sub = dyn_cast<MDNode>(O.get())) scan(Sub);
         }
       };
@@ -1937,7 +2058,7 @@ static int cmdLink(int argc, char **argv) {
       std::vector<Constant *> keepUsed;
       if (auto *CA = dyn_cast<ConstantArray>(U->getInitializer()))
         for (Value *Op : CA->operands())
-          if (auto *RF = dyn_cast<Function>(Op->stripPointerCasts()))
+          if (auto *RF = dyn_cast<GlobalValue>(Op->stripPointerCasts()))
             if (referenced.count(RF)) keepUsed.push_back(cast<Constant>(Op));
       U->eraseFromParent();
       if (!keepUsed.empty()) {
@@ -1996,6 +2117,46 @@ static int cmdLink(int argc, char **argv) {
         put16(payload, entries.size());
         for (auto &e : entries) payload += e;
         tag(cnst, "CNST", payload);
+      }
+    }
+    // Vertex attributes (VATT names/indices, VATY types) for vertex functions with [[stage_in]].
+    if (entryKind[&F].second == 0) {
+      MDNode *EN = nullptr;
+      if (NamedMDNode *N = Clone->getNamedMetadata("air.vertex"))
+        for (MDNode *op : N->operands()) EN = op;
+      if (EN && EN->getNumOperands() >= 3) {
+        std::string vatt, vaty;
+        unsigned count = 0;
+        auto *ins = cast<MDNode>(EN->getOperand(2));
+        for (const MDOperand &io : ins->operands()) {
+          auto *arg = cast<MDNode>(io.get());
+          if (arg->getNumOperands() < 2) continue;
+          auto *kindS = dyn_cast<MDString>(arg->getOperand(1));
+          if (!kindS || kindS->getString() != "air.vertex_input") continue;
+          unsigned argNo = mdconst::extract<ConstantInt>(arg->getOperand(0))->getZExtValue();
+          unsigned loc = 0;
+          std::string name, type;
+          for (unsigned k = 2; k + 1 < arg->getNumOperands(); ++k) {
+            auto *ks = dyn_cast<MDString>(arg->getOperand(k));
+            if (!ks) continue;
+            if (ks->getString() == "air.location_index") loc = mdconst::extract<ConstantInt>(arg->getOperand(k + 1))->getZExtValue();
+            if (ks->getString() == "air.arg_name") name = cast<MDString>(arg->getOperand(k + 1))->getString().str();
+            if (ks->getString() == "air.arg_type_name") type = cast<MDString>(arg->getOperand(k + 1))->getString().str();
+          }
+          Function *CF2 = Clone->getFunction(F.getName());
+          bool used = CF2 && argNo < CF2->arg_size() && !CF2->getArg(argNo)->use_empty();
+          vatt += name + std::string(1, '\0');
+          put16(vatt, loc | (used ? 0x8000 : 0));
+          vaty += (char)metalDataType(type);
+          ++count;
+        }
+        if (count) {
+          std::string a, b;
+          put16(a, count); a += vatt;
+          put16(b, count); b += vaty;
+          tag(cnst, "VATT", a);
+          tag(cnst, "VATY", b);
+        }
       }
     }
     std::string bc;

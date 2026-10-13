@@ -33,8 +33,9 @@ for s in SCALARS:
         VECTOR_TYPES.add(f'simd_{s}{n}')
 STD_ATTRS = {'maybe_unused', 'nodiscard', 'noreturn', 'deprecated', 'fallthrough', 'likely', 'unlikely',
              'carries_dependency', 'no_unique_address'}
-QUOTE_ARGS = {'user', 'depth', 'patch', 'raster_order_group'}
+QUOTE_ARGS = {'user', 'depth', 'patch'}
 QUALIFIERS = {'vertex', 'fragment', 'kernel'}
+PREDICATE_NAMES = set()  # function constants (and constants derived from them) in the current file
 ADDRESS_SPACES = {'device': '__global', 'constant': '__constant', 'threadgroup': '__local', 'thread': '',
                   'threadgroup_imageblock': '__local', 'object_data': '__global', 'ray_data': ''}
 
@@ -62,6 +63,20 @@ def rewrite(text, include_dir):
         if sig[i][1] == 'using' and sig[i + 1][0] == 'id' and sig[i + 2][1] == '=' and sig[i + 3][1] in vector_names:
             if i + 4 < len(sig) and sig[i + 4][1] == ';':
                 vector_names.add(sig[i + 1][1])
+
+    # names declared with [[function_constant(...)]]
+    fc_names = set()
+    for i in range(1, len(sig) - 2):
+        if sig[i][1] == '[[' and sig[i + 1][1] == 'function_constant' and sig[i - 1][0] == 'id':
+            k = i - 1
+            while k > 0 and sig[k][1] not in (';', '{', '}'):
+                k -= 1
+            if any(t[1] == 'constant' for t in sig[k:i]):
+                fc_names.add(sig[i - 1][1])
+    PREDICATE_NAMES.clear()
+    PREDICATE_NAMES.update(fc_names)
+    fc_inits = []      # (name, expression) of program-scope constants computed from function constants
+    depth = 0
 
     out = []           # list of output strings
     in_user = True
@@ -98,6 +113,31 @@ def rewrite(text, include_dir):
             out.append(val)
             i += 1
             continue
+        if val == '{':
+            depth += 1
+        elif val == '}':
+            depth -= 1
+        if val == 'constant' and depth == 0 and fc_names:
+            # constant bool x = !someFunctionConstant;  -> computed by the static initializer
+            j = i + 1
+            eq = None
+            while j < n and toks[j][1] not in (';', '{'):
+                if toks[j][1] == '=' and eq is None:
+                    eq = j
+                j += 1
+            if eq is not None and j < n and toks[j][1] == ';':
+                rhs = toks[eq + 1:j]
+                if any(t[1] in fc_names or t[1] == 'is_function_constant_defined' for t in rhs):
+                    names = [t[1] for t in toks[i + 1:eq] if t[0] == 'id']
+                    out.append('__global')
+                    out.extend(t[1] for t in toks[i + 1:eq])
+                    out.append(' [[clang::annotate("air:fc_derived")]]')
+                    out.append(''.join('\n' for t in rhs if t[1] == '\n'))
+                    out.append(';')
+                    fc_inits.append((names[-1], ''.join(t[1] for t in rhs if t[0] != 'line')))
+                    PREDICATE_NAMES.add(names[-1])
+                    i = j + 1
+                    continue
         if val == '[[':
             # attribute specifier; collect up to the matching ]]
             j = i + 1
@@ -134,10 +174,11 @@ def rewrite(text, include_dir):
                 if j < n and toks[j][1] != '(':
                     ptr = is_pointer_decl(toks, i + 1)
                     if val == 'constant':
-                        # Objects (program-scope constants) use OpenCL __constant; pointers and references use
-                        # the numeric address space, which C++ for OpenCL lets bind to generic references
-                        # (implicit copies of buffer structs).
-                        out.append('__constant' if not ptr else '__attribute__((address_space(2)))')
+                        # The numeric address space (not OpenCL's __constant) so that constant objects copy into
+                        # generic references; objects are const (usable in constant expressions), and static in
+                        # function bodies.
+                        AS2 = '__attribute__((address_space(2)))'
+                        out.append('const ' + AS2 if ptr else ('static const ' if depth > 0 else 'const ') + AS2)
                     elif val == 'threadgroup' and not ptr:
                         # threadgroup variables in function bodies become addrspace(3) globals in xtmetal
                         out.append('__attribute__((annotate("air:tg_local")))')
@@ -219,7 +260,9 @@ def rewrite(text, include_dir):
                         continue
         out.append(val)
         i += 1
-    return '#pragma OPENCL EXTENSION cl_khr_fp16 : enable\n' + ''.join(out)
+    tail = ''.join(f'\n__attribute__((annotate("air:fc_init"))) void __xt_fc_init_{k}() {{ {nm} = {ex}; }}'
+                   for k, (nm, ex) in enumerate(fc_inits))
+    return '#pragma OPENCL EXTENSION cl_khr_fp16 : enable\n' + ''.join(out) + tail + '\n'
 
 
 def match_paren(toks, k):
@@ -322,18 +365,20 @@ def rewrite_attrs(body, out):
                 s = ''.join(v for _, v in arg).strip()
                 if not s:
                     continue
+                if name == 'function_constant' and s in PREDICATE_NAMES:
+                    s = '"' + s + '"'
                 if name in QUOTE_ARGS or (name == 'host_name' and not s.startswith('"')):
                     if not s.startswith('"'):
                         s = '"' + s + '"'
                 args.append(s)
-        if name == 'function_constant':
-            fc = True
+        if name == 'function_constant' and args and not args[0].startswith('"'):
+            fc = True  # declares a function constant (argument predicates name one instead)
         res.append('clang::annotate("air:' + name + '"' + ''.join(', ' + a for a in args) + ')')
     if fc:
         # function constants are globals the compiler redirects; they must not be __constant (which
         # needs an initializer and lets clang fold reads)
         for j in range(len(out) - 1, -1, -1):
-            if out[j] in ('__constant', '__attribute__((address_space(2)))'):
+            if out[j] == '__constant' or out[j].endswith('__attribute__((address_space(2)))'):
                 out[j] = '__global'
                 break
             if out[j] in (';', '}', '{'):

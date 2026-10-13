@@ -80,6 +80,44 @@ def write_empty_dia(path):
         open(path, 'wb').close()
 
 
+def stdlib_pch(base_cmd, fast):
+    """Precompiled standard library for this mode, built once per xtmetal/header version."""
+    if os.environ.get('XTMETAL_NO_PCH'):
+        return None
+    import hashlib, fcntl
+    h = hashlib.sha1()
+    for f in (XTMETAL, os.path.join(INCLUDE, '__xt_metal_impl.h'), os.path.realpath(__file__)):
+        st = os.stat(f)
+        h.update(f'{f}:{st.st_size}:{st.st_mtime_ns}'.encode())
+    h.update(' '.join(base_cmd).encode())
+    h.update(b'fast' if fast else b'precise')
+    cache = os.path.join(os.environ.get('XDG_CACHE_HOME') or os.path.expanduser('~/.cache'), 'xtool-metal')
+    os.makedirs(cache, exist_ok=True)
+    pch = os.path.join(cache, f'stdlib-{h.hexdigest()[:16]}.pch')
+    if os.path.exists(pch):
+        return pch
+    with open(pch + '.lock', 'w') as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if os.path.exists(pch):
+            return pch
+        tmp = tempfile.mkdtemp(prefix='xtmetal-pch-')
+        try:
+            src = os.path.join(tmp, 'pch.metal')
+            open(src, 'w').write('#include <__xt_metal_impl.h>\n')
+            ii = pch[:-4] + '.ii'  # kept: the PCH records its input file
+            if run(base_cmd + [src, '-o', ii]).returncode:
+                return None
+            text = '#pragma OPENCL EXTENSION cl_khr_fp16 : enable\n' + open(ii).read()
+            open(ii, 'w').write(text)
+            cmd = [XTMETAL, 'compile', ii, '--emit-pch', '-o', pch + '.tmp'] + (['--fast-math'] if fast else []) + ['--', '-fms-extensions']
+            if run(cmd).returncode:
+                return None
+            os.replace(pch + '.tmp', pch)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+    return pch
+
+
 def compile_one(opts, src, out):
     os_name, major, minor, env = parse_target(opts['target'])
     mv = metal_version(os_name, major, minor, opts.get('std'))
@@ -104,6 +142,7 @@ def compile_one(opts, src, out):
             cmd.append('-D__FAST_MATH__=1')
         if env == '-simulator':
             cmd.append('-D__XT_SIMULATOR__=1')
+        base_cmd = list(cmd)  # target-dependent flags only; the precompiled stdlib is keyed on these
         for k, v in opts['defines']:
             cmd.append(f'-{k}{v}')
         for i in opts['includes']:
@@ -113,6 +152,9 @@ def compile_one(opts, src, out):
         if opts.get('sysroot'):
             fw = os.path.join(opts['sysroot'], 'System', 'Library', 'Frameworks')
             cmd += ['-iframework', fw]
+        pch = stdlib_pch(base_cmd, fast)
+        if pch:
+            cmd.append('-D__XT_PP=1')
         if opts.get('mf'):
             cmd += ['-MD', '-MT', opts.get('mt') or out, '-MF', opts['mf']]
         if opts.get('w'):
@@ -133,6 +175,8 @@ def compile_one(opts, src, out):
                '--sdk-version', sdk_version(opts.get('sysroot'))]
         if fast:
             cmd.append('--fast-math')
+        if pch:
+            cmd += ['--pch', pch]
         if opts.get('dia'):
             cmd += ['--diag', opts['dia']]
         extra = ['-fms-extensions']

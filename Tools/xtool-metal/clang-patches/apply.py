@@ -106,8 +106,26 @@ patch('clang/lib/Sema/SemaCast.cpp',
     const auto *TV = CastTypeInfo->getType()->getAs<ExtVectorType>();
     if ((FV && FV->getNumElements() == TV->getNumElements() &&
          !Context.hasSameUnqualifiedType(FV->getElementType(), TV->getElementType())) ||
-        From->isArithmeticType())
+        From->isArithmeticType() || (From->isRecordType() && From->getAsCXXRecordDecl() &&
+                                     From->getAsCXXRecordDecl()->getName() == "packed_vec"))
       return BuildCXXTypeConstructExpr(CastTypeInfo, LPLoc, MultiExprArg(&CastExpr, 1), RPLoc, false);
   }
   CastOperation Op(*this, CastTypeInfo->getType(), CastExpr);''')
+# F: program-scope and static variables may live in the numeric constant address space (MSL `constant`)
+patch('clang/lib/Sema/SemaDecl.cpp', '#include "TypeLocBuilder.h"\n', '#include "TypeLocBuilder.h"\n' + DECL)
+patch('clang/lib/Sema/SemaDecl.cpp',
+      '''      if (!T->isSamplerT() && !T->isDependentType() &&
+          !(T.getAddressSpace() == LangAS::opencl_constant ||''',
+      '''      if (!T->isSamplerT() && !T->isDependentType() &&
+          !(XtMSL && isTargetAddressSpace(T.getAddressSpace())) &&
+          !(T.getAddressSpace() == LangAS::opencl_constant ||''')
+# G: no OpenCL vector literals: (float3)(v).xyz is a C cast of (v).xyz in MSL
+patch('clang/lib/Parse/ParseExpr.cpp', '#include "clang/Parse/Parser.h"\n', '#include "clang/Parse/Parser.h"\n' + DECL)
+patch('clang/lib/Parse/ParseExpr.cpp',
+      '''        if (getLangOpts().OpenCL)
+        {
+          TypeResult Ty;''',
+      '''        if (getLangOpts().OpenCL && !XtMSL)
+        {
+          TypeResult Ty;''')
 print('patched')
