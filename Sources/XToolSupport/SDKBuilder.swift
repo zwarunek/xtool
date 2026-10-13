@@ -233,6 +233,125 @@ struct SDKBuilder {
             .write(to: output.appendingPathComponent("darwin-sdk-version.txt"))
     }
 
+    /// `ld64.lld` wrapper installed in the toolset: emulates `ld -r` (which lld lacks) with a static archive,
+    /// and force-loads those archives in normal links so they behave like the merged object `ld -r` makes.
+    static let ld64Trampoline = """
+    #!/bin/sh
+
+    set -eu
+
+    case "$0" in
+        */*) script_path="$0" ;;
+        *) script_path="$(command -v "$0")" ;;
+    esac
+    case "$script_path" in
+        /*) script_dir="${script_path%/*}"; [ -n "$script_dir" ] || script_dir="/" ;;
+        */*) script_dir="${script_path%/*}" ;;
+        *) script_dir="." ;;
+    esac
+    bin_dir="$(CDPATH= cd -P "$script_dir" && pwd -P)"
+
+    find_argument_value() {
+        argument_name="$1"
+        shift
+
+        while [ "$#" -gt 0 ]; do
+            if [ "$1" = "$argument_name" ]; then
+                shift
+                if [ "$#" -gt 0 ]; then
+                    argument_value="$1"
+                    return 0
+                fi
+                return 1
+            fi
+            shift
+        done
+
+        return 1
+    }
+
+    relocatable=
+    for argument do
+        if [ "$argument" = "-r" ]; then
+            relocatable=1
+        fi
+    done
+
+    if [ -n "$relocatable" ]; then
+        missing_argument=
+
+        if find_argument_value -filelist "$@"; then
+            filelist="$argument_value"
+        else
+            missing_argument=1
+        fi
+        if find_argument_value -dependency_info "$@"; then
+            dependency_info="$argument_value"
+        else
+            missing_argument=1
+        fi
+        if find_argument_value -o "$@"; then
+            output="$argument_value"
+        else
+            missing_argument=1
+        fi
+
+        if [ -n "$missing_argument" ]; then
+            echo "ld64.lld trampoline could not process arguments." >&2
+            echo "Please file an issue at https://github.com/xtool-org/xtool/issues" >&2
+            echo "  Arguments: $@" >&2
+            exit 2
+        fi
+
+        exec "$bin_dir/llvm-lib" -static \
+            -filelist "$filelist" \
+            -dependency_info "$dependency_info" \
+            -o "$output"
+    fi
+
+    # The "relocatable objects" made above are really archives. ld64 -r would have merged every member
+    # into one object, so force-load them: that keeps every member, like the merged object would, and
+    # loads them up front so lld honors their LC_LINKER_OPTION autolink entries (-lswiftCore, ...).
+    # Without this, dynamic library products fail with undefined swift_once / swift_errorRetain.
+    is_object_archive() {
+        case "$1" in
+            *.o) [ -f "$1" ] && [ "$(head -c 7 "$1" 2>/dev/null)" = '!<arch>' ] ;;
+            *) return 1 ;;
+        esac
+    }
+
+    temp_files=
+    next_is_filelist=
+    for argument do
+        shift
+        if [ -n "$next_is_filelist" ]; then
+            next_is_filelist=
+            new_filelist="$(mktemp)"
+            temp_files="$temp_files $new_filelist"
+            while IFS= read -r input || [ -n "$input" ]; do
+                if is_object_archive "$input"; then
+                    set -- "$@" -force_load "$input"
+                else
+                    printf '%s\n' "$input" >> "$new_filelist"
+                fi
+            done < "$argument"
+            set -- "$@" -filelist "$new_filelist"
+        elif [ "$argument" = "-filelist" ]; then
+            next_is_filelist=1
+        elif is_object_archive "$argument"; then
+            set -- "$@" -force_load "$argument"
+        else
+            set -- "$@" "$argument"
+        fi
+    done
+
+    status=0
+    "$bin_dir/orig/ld64.lld" "$@" || status=$?
+    # shellcheck disable=SC2086
+    [ -z "$temp_files" ] || rm -f $temp_files
+    exit "$status"
+    """
+
     // swiftlint:disable:next function_body_length
     private func installToolset(in output: URL) async throws {
         let toolsetDir = output.appendingPathComponent("toolset")
@@ -301,82 +420,7 @@ struct SDKBuilder {
         //
         // so instead, we write a trampoline that intercepts `ld64.lld -r` and instead runs
         // libtool to build a static archive.
-        try """
-        #!/bin/sh
-
-        set -eu
-
-        case "$0" in
-            */*) script_path="$0" ;;
-            *) script_path="$(command -v "$0")" ;;
-        esac
-        case "$script_path" in
-            /*) script_dir="${script_path%/*}"; [ -n "$script_dir" ] || script_dir="/" ;;
-            */*) script_dir="${script_path%/*}" ;;
-            *) script_dir="." ;;
-        esac
-        bin_dir="$(CDPATH= cd -P "$script_dir" && pwd -P)"
-
-        find_argument_value() {
-            argument_name="$1"
-            shift
-
-            while [ "$#" -gt 0 ]; do
-                if [ "$1" = "$argument_name" ]; then
-                    shift
-                    if [ "$#" -gt 0 ]; then
-                        argument_value="$1"
-                        return 0
-                    fi
-                    return 1
-                fi
-                shift
-            done
-
-            return 1
-        }
-
-        relocatable=
-        for argument do
-            if [ "$argument" = "-r" ]; then
-                relocatable=1
-            fi
-        done
-
-        if [ -n "$relocatable" ]; then
-            missing_argument=
-
-            if find_argument_value -filelist "$@"; then
-                filelist="$argument_value"
-            else
-                missing_argument=1
-            fi
-            if find_argument_value -dependency_info "$@"; then
-                dependency_info="$argument_value"
-            else
-                missing_argument=1
-            fi
-            if find_argument_value -o "$@"; then
-                output="$argument_value"
-            else
-                missing_argument=1
-            fi
-
-            if [ -n "$missing_argument" ]; then
-                echo "ld64.lld trampoline could not process arguments." >&2
-                echo "Please file an issue at https://github.com/xtool-org/xtool/issues" >&2
-                echo "  Arguments: $@" >&2
-                exit 2
-            fi
-
-            exec "$bin_dir/llvm-lib" -static \
-                -filelist "$filelist" \
-                -dependency_info "$dependency_info" \
-                -o "$output"
-        fi
-
-        exec "$bin_dir/orig/ld64.lld" "$@"
-        """.write(
+        try Self.ld64Trampoline.write(
             to: ld64,
             atomically: false,
             encoding: .utf8
