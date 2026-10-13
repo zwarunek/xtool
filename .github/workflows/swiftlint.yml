@@ -2,6 +2,7 @@ on:
   push:
     branches:
       - main
+      - 'ci/**'
   pull_request:
     paths:
       - '.github/workflows/swiftlint.yml'
@@ -12,6 +13,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Lint (full list)
+        run: make lint SWIFTLINT_FLAGS='--reporter=xcode' || true
       - name: Lint
         run: |
           make lint SWIFTLINT_FLAGS='--reporter=github-actions-logging' | tee swiftlint.log
