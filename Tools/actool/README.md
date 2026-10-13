@@ -7,16 +7,17 @@ apps whose resources include asset catalogs.
 
 ## Install
 
-Swift Build looks for `actool` in the `usr/bin` directory of the Swift toolchain that runs the build (it does
-not search `PATH` or the Swift SDK's toolset), so build a self-contained binary and copy it there:
+Swift Build looks for `actool` in the Swift toolchain's `usr/bin` first, then in the platform tool
+directories of the Darwin SDK (`Developer/Platforms/iPhoneOS.platform/Developer/usr/bin` and the
+simulator one); it does not search `PATH`. `Scripts/install.sh` builds a self-contained binary and installs
+it into the SDK that `xtool sdk install` created (override with `XTOOL_DARWIN_SDK`):
 
 ```sh
-cd Tools/actool
-swift build -c release --build-system native --static-swift-stdlib
-cp .build/release/actool "$(dirname "$(readlink -f "$(command -v swift)")")/actool"
+Tools/actool/Scripts/install.sh
 ```
 
-If that directory already has an `actool` symlink (for example to a stub), remove it first.
+Remove any `actool` from the toolchain's `usr/bin` (for example a stub or a dangling symlink), since it
+would win. Copying the binary into the toolchain's `usr/bin` instead also works.
 
 ## What it compiles
 
