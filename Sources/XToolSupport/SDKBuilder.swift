@@ -300,7 +300,8 @@ struct SDKBuilder {
         // per-file MachOs into a single one for the module, on Darwin).
         //
         // so instead, we write a trampoline that intercepts `ld64.lld -r` and instead runs
-        // libtool to build a static archive.
+        // libtool to build a static archive. Later links load those archives with -force_load
+        // so they behave like the merged object they stand in for.
         try """
         #!/bin/sh
 
@@ -375,7 +376,41 @@ struct SDKBuilder {
                 -o "$output"
         fi
 
-        exec "$bin_dir/orig/ld64.lld" "$@"
+        # `ld64.lld -r` above produces a static archive, but the real `-r` output is an object whose every member is
+        # linked. Pass such archives (inputs named *.o that start with the archive magic) with -force_load so dynamic
+        # libraries and the ObjC/Swift metadata in them keep all of their contents.
+        is_archive() {
+            [ -f "$1" ] && [ "$(head -c 7 "$1" 2>/dev/null)" = "!<arch>" ]
+        }
+
+        tmp_filelist=
+        expect_filelist=
+        for argument do
+            shift
+            if [ -n "$expect_filelist" ]; then
+                expect_filelist=
+                tmp_filelist="$(mktemp)"
+                while IFS= read -r entry || [ -n "$entry" ]; do
+                    if is_archive "${entry%%,*}"; then
+                        set -- "$@" -force_load "${entry%%,*}"
+                    else
+                        printf '%s\\n' "$entry" >> "$tmp_filelist"
+                    fi
+                done < "$argument"
+                set -- "$@" -filelist "$tmp_filelist"
+                continue
+            fi
+            case "$argument" in
+                -filelist) expect_filelist=1; continue ;;
+                *.o) if is_archive "$argument"; then set -- "$@" -force_load "$argument"; continue; fi ;;
+            esac
+            set -- "$@" "$argument"
+        done
+
+        status=0
+        "$bin_dir/orig/ld64.lld" "$@" || status=$?
+        [ -z "$tmp_filelist" ] || rm -f "$tmp_filelist"
+        exit "$status"
         """.write(
             to: ld64,
             atomically: false,
