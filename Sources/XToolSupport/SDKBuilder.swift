@@ -196,6 +196,9 @@ struct SDKBuilder {
         // this toolset works with the swiftbuild system on Linux
         // note that we need Swift 6.4+ because 6.3 has bugs in
         // resolving the librarian and linker paths.
+        // SwiftBuild scans dependencies for explicit module builds, and the
+        // scanner only adds cross-import overlays (e.g. _PhotosUI_SwiftUI,
+        // which declares PhotosPicker) with -enable-cross-import-overlays.
         try """
         {
             "schemaVersion": "1.0",
@@ -205,6 +208,11 @@ struct SDKBuilder {
             },
             "librarian": {
                 "path": "llvm-lib"
+            },
+            "swiftCompiler": {
+                "extraCLIOptions": [
+                    "-Xfrontend", "-enable-cross-import-overlays"
+                ]
             }
         }
         """.write(
