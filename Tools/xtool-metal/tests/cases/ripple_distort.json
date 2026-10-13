@@ -1,0 +1,1 @@
+{"shader": "swiftui_effects", "kind": "visible", "effect": "distortion", "noBounds": true, "function": "ripple_distort", "width": 64, "height": 64, "args": [1.2, 2.5]}

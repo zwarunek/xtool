@@ -111,6 +111,9 @@ typedef long int64_t; typedef unsigned long uint64_t;
 #define USHRT_MAX 65535
 #define CHAR_BIT 8
 
+extern "C" bool __xt_fc_defined(const __global void *) __asm("xt.fc_defined");
+#define is_function_constant_defined(x) __xt_fc_defined((const __global void *)&(x))
+
 constexpr half operator""h(long double v) { return (half)(float)v; }
 constexpr half operator""h(unsigned long long v) { return (half)(float)v; }
 constexpr half operator""H(long double v) { return (half)(float)v; }
@@ -142,6 +145,8 @@ template <class T, int N> struct traits<T __attribute__((ext_vector_type(N)))> {
 template <class T> struct traits<const T> : traits<T> {};
 template <class T, int N> struct vt { typedef T type __attribute__((ext_vector_type(N))); };
 template <class T> struct vt<T, 1> { typedef T type; };
+template <bool B, class T = void> struct enable_if {};
+template <class T> struct enable_if<true, T> { typedef T type; };
 template <class T> struct remove_cv { typedef T type; };
 template <class T> struct remove_cv<const T> { typedef T type; };
 template <class T> struct remove_cv<volatile T> { typedef T type; };
@@ -157,9 +162,9 @@ template <int N, int... I> struct mkseq : mkseq<N - 1, N - 1, I...> {};
 template <int... I> struct mkseq<0, I...> { typedef seq<I...> type; };
 template <class V, int... I, class... A> constexpr V make_impl(seq<I...>, A... a) {
   typedef typename traits<V>::elem E;
-  if constexpr (sizeof...(A) == 0) return V{};
-  else if constexpr (sizeof...(A) == 1 && (traits<A>::n + ...) == 1) return V(get<E, 0>(a...));
-  else return V{get<E, I>(a...)...};
+  if constexpr (sizeof...(A) == 0) { V r = {}; return r; }
+  else if constexpr (sizeof...(A) == 1 && (traits<A>::n + ...) == 1) { E e = get<E, 0>(a...); V r = {((void)I, e)...}; return r; }
+  else { V r = {get<E, I>(a...)...}; return r; }
 }
 template <class E, class X> constexpr auto cvt(X x) {
   if constexpr (traits<X>::n == 1) return static_cast<E>(x);
@@ -182,6 +187,41 @@ for s, *_ in SCALARS:
             continue
         w(f'using ::{s}{n};')
 w('template <class T, int N> using vec = typename __xt::vt<T, N>::type;')
+w('''template <class T, size_t N> struct array {
+  T __elems[N ? N : 1];
+  T &operator[](size_t i) { return __elems[i]; }
+  const T &operator[](size_t i) const { return __elems[i]; }
+  constexpr size_t size() const { return N; }
+  T *begin() { return __elems; } T *end() { return __elems + N; }
+  const T *begin() const { return __elems; } const T *end() const { return __elems + N; }
+};
+template <class T, size_t N> struct array_ref { const T *p; size_t n; };
+using ::int8_t; using ::uint8_t; using ::int16_t; using ::uint16_t; using ::int32_t; using ::uint32_t; using ::int64_t; using ::uint64_t;
+using ::size_t; using ::ptrdiff_t; using ::uchar; using ::ushort; using ::uint; using ::ulong;
+template <class T> struct numeric_limits;
+template <> struct numeric_limits<float> { static constexpr float max() { return 0x1.fffffep127f; } static constexpr float min() { return 0x1.0p-126f; } static constexpr float lowest() { return -0x1.fffffep127f; } static constexpr float epsilon() { return 0x1.0p-23f; } static constexpr float infinity() { return __builtin_inff(); } static constexpr float quiet_NaN() { return __builtin_nanf(""); } };
+template <> struct numeric_limits<half> { static constexpr half max() { return (half)65504.0f; } static constexpr half min() { return (half)6.10351562e-05f; } static constexpr half lowest() { return (half)-65504.0f; } static constexpr half epsilon() { return (half)9.765625e-4f; } static constexpr half infinity() { return (half)__builtin_inff(); } };
+template <> struct numeric_limits<int> { static constexpr int max() { return 2147483647; } static constexpr int min() { return -2147483647 - 1; } static constexpr int lowest() { return -2147483647 - 1; } };
+template <> struct numeric_limits<uint> { static constexpr uint max() { return 4294967295u; } static constexpr uint min() { return 0; } static constexpr uint lowest() { return 0; } };
+template <> struct numeric_limits<short> { static constexpr short max() { return 32767; } static constexpr short min() { return -32768; } static constexpr short lowest() { return -32768; } };
+template <> struct numeric_limits<ushort> { static constexpr ushort max() { return 65535; } static constexpr ushort min() { return 0; } static constexpr ushort lowest() { return 0; } };
+template <class T, T v> struct integral_constant { static constexpr T value = v; };
+typedef integral_constant<bool, true> true_type; typedef integral_constant<bool, false> false_type;
+template <class A, class B> struct is_same : false_type {}; template <class A> struct is_same<A, A> : true_type {};
+template <bool B, class T = void> struct enable_if {}; template <class T> struct enable_if<true, T> { typedef T type; };
+template <bool B, class T = void> using enable_if_t = typename enable_if<B, T>::type;
+template <class T> struct is_floating_point : integral_constant<bool, __is_same(T, float) || __is_same(T, half)> {};
+template <class T> struct is_integral : integral_constant<bool, __is_integral(T)> {};
+template <class T> struct is_vector : integral_constant<bool, __xt::traits<T>::vec> {};
+template <class T> struct is_scalar : integral_constant<bool, !__xt::traits<T>::vec> {};
+template <class T> struct make_scalar { typedef typename __xt::traits<T>::elem type; };
+template <class T> using make_scalar_t = typename make_scalar<T>::type;
+template <class T> struct vec_elements { static constexpr int value = __xt::traits<T>::n; };
+template <class T> struct remove_cv : __xt::remove_cv<T> {};
+template <class T> using remove_cv_t = typename __xt::remove_cv<T>::type;
+template <bool B, class T, class F> struct conditional { typedef T type; }; template <class T, class F> struct conditional<false, T, F> { typedef F type; };
+template <class T> constexpr T &&move(T &t) { return static_cast<T &&>(t); }
+''')
 w('''
 enum class access { sample = 0, read = 1, write = 2, read_write = 3 };
 struct __mem_flags { unsigned v; };
@@ -225,6 +265,11 @@ for mode in ('fast', 'precise'):
                         mw(f'inline {ty} {fn}({ty} x, {s} y) {{ return {fn}(x, {ty}(y)); }}')
                     if n > 1 and fn == 'clamp':
                         mw(f'inline {ty} clamp({ty} x, {s} y, {s} z) {{ return clamp(x, {ty}(y), {ty}(z)); }}')
+            pre3 = 'fast_' if (mode == 'fast' and s == 'float') else ''
+            for nm3 in ('min3', 'max3', 'median3'):
+                c3 = air(f'air.{pre3}f{nm3}.{sf}', ty, [ty] * 3)
+                mw(f'inline {ty} f{nm3}({ty} x, {ty} y, {ty} z) {{ return {c3}(x, y, z); }}')
+                mw(f'inline {ty} {nm3}({ty} x, {ty} y, {ty} z) {{ return {c3}(x, y, z); }}')
             # aliases
             mw(f'inline {ty} abs({ty} x) {{ return fabs(x); }}')
             mw(f'inline {ty} max({ty} x, {ty} y) {{ return fmax(x, y); }}')
@@ -259,7 +304,7 @@ for mode in ('fast', 'precise'):
 
 # default namespace: pick fast or precise per compile mode
 mw('#ifdef __FAST_MATH__\nnamespace __mathsel = fast;\n#else\nnamespace __mathsel = precise;\n#endif')
-names = sorted(set(F1 + [f for f in F2 + F3 if not f.endswith('_')] + ['abs', 'max', 'min', 'fract']))
+names = sorted(set(F1 + [f for f in F2 + F3 if not f.endswith('_')] + ['abs', 'max', 'min', 'fract', 'min3', 'max3', 'median3', 'fmin3', 'fmax3', 'fmedian3']))
 for nm in names:
     mw(f'using __mathsel::{nm};')
 
@@ -272,6 +317,8 @@ for s in FLOATS:
         if n > 1:
             mw(f'inline {ty} mix({ty} x, {ty} y, {s} a) {{ return mix(x, y, {ty}(a)); }}')
         mw(f'inline {ty} sign({ty} x) {{ return {air(f"air.sign.{sf}", ty, [ty])}(x); }}')
+        for dn in ('dfdx', 'dfdy', 'fwidth'):
+            mw(f'inline {ty} {dn}({ty} x) {{ return {air(f"air.{dn}.{sf}", ty, [ty], pure=False)}(x); }}')
         mw(f'inline {ty} step({ty} e, {ty} x) {{ return __xt_make<{ty}>(x >= e) * ({s})(-1); }}' if n > 1 else
            f'inline {ty} step({ty} e, {ty} x) {{ return x >= e ? ({s})1 : ({s})0; }}')
         if n > 1:
@@ -337,7 +384,12 @@ for s in INTS:
             mw(f'inline {ty} min({ty} x, {s} y) {{ return min(x, ({ty})y); }}')
             mw(f'inline {ty} clamp({ty} x, {s} y, {s} z) {{ return clamp(x, ({ty})y, ({ty})z); }}')
         mw(f'inline {ty} madsat({ty} x, {ty} y, {ty} z) {{ return {air(f"air.mad_sat.{ksf}", ty, [ty] * 3)}(x, y, z); }}')
-        mw(f'inline {ty} madhi({ty} x, {ty} y, {ty} z) {{ return mulhi(x, y) + z; }}')
+        mw(f'inline {ty} madhi({ty} x, {ty} y, {ty} z) {{ return {air(f"air.mad_hi.{ksf}", ty, [ty] * 3)}(x, y, z); }}')
+        mw(f'inline {ty} min3({ty} x, {ty} y, {ty} z) {{ return {air(f"air.min3.{ksf}", ty, [ty] * 3)}(x, y, z); }}')
+        mw(f'inline {ty} max3({ty} x, {ty} y, {ty} z) {{ return {air(f"air.max3.{ksf}", ty, [ty] * 3)}(x, y, z); }}')
+        mw(f'inline {ty} median3({ty} x, {ty} y, {ty} z) {{ return {air(f"air.median3.{ksf}", ty, [ty] * 3)}(x, y, z); }}')
+        mw(f'inline {ty} extract_bits({ty} x, uint o, uint b) {{ return {air(f"air.extract_bits.{ksf}", ty, [ty, "uint", "uint"])}(x, o, b); }}')
+        mw(f'inline {ty} insert_bits({ty} x, {ty} y, uint o, uint b) {{ return {air(f"air.insert_bits.{ksf}", ty, [ty, ty, "uint", "uint"])}(x, y, o, b); }}')
         mw(f'inline {ty} clz({ty} x) {{ return {air(f"air.clz.{sf}", ty, [ty, "bool"])}(x, false); }}')
         mw(f'inline {ty} ctz({ty} x) {{ return {air(f"air.ctz.{sf}", ty, [ty, "bool"])}(x, false); }}')
         mw(f'inline {ty} popcount({ty} x) {{ return {air(f"air.popcount.{sf}", ty, [ty])}(x); }}')
@@ -378,8 +430,10 @@ template <class T, int C, int R> struct matrix {
   col_t columns[C];
   matrix() = default;
   constexpr explicit matrix(T d) : columns{} { for (int i = 0; i < C && i < R; ++i) columns[i][i] = d; }
-  template <class... A, class = typename __xt::vt<int, sizeof...(A) == C ? 1 : 2>::type>
+  template <class... A, typename __xt::enable_if<sizeof...(A) == C && C != 1, int>::type = 0>
   constexpr matrix(A... cols) : columns{static_cast<col_t>(cols)...} {}
+  template <class... A, typename __xt::enable_if<sizeof...(A) == C * R && C * R != C, long>::type = 0>
+  matrix(A... s) { T v[] = {static_cast<T>(s)...}; for (int i = 0; i < C * R; ++i) columns[i / R][i % R] = v[i]; }
   template <class U> constexpr explicit matrix(const matrix<U, C, R> &o) : columns{} { for (int i = 0; i < C; ++i) columns[i] = __builtin_convertvector(o.columns[i], col_t); }
   col_t &operator[](int i) { return columns[i]; }
   const col_t &operator[](int i) const { return columns[i]; }
@@ -460,6 +514,11 @@ for s, *_ in SCALARS:
     for n in VEC:
         w(f'typedef packed_vec<{s}, {n}> packed_{s}{n};')
 w('} // namespace metal')
+for s_, *_ in SCALARS:
+    if s_ == 'bool':
+        continue
+    for n in VEC:
+        w(f'using metal::packed_{s_}{n};')
 
 # ------------------------------------------------------------------------------------------------- textures and samplers
 TEX = [  # class, opaque, coord dims, has offset, is array, kind
@@ -668,8 +727,9 @@ for cls, op, d in TEX:
             gret = 'typename __texel<T>::v4' if not depth else 'vec<T, 4>'
             tw(f'  {gret} gather({", ".join(ps)}) const {{ ' + ' else '.join(body) + ' }')
     # read
-    for cbase in (['uint', 'ushort'] if d > 1 and not buf else ['uint']):
-        ps = [f'{icoordty(d, cbase)} c']
+    for cbase in (['uint', 'ushort'] if d > 1 and not buf and not cube else ['uint']):
+        cd = 2 if cube else d
+        ps = [f'{icoordty(cd, cbase)} c']
         if arr:
             ps.append('uint slice')
         if ms:
@@ -684,7 +744,7 @@ for cls, op, d in TEX:
             i16 = '.i16' if cbase == 'ushort' else ''
             name = f'air.read_{op}{i16}.{sf}'
             ity = 'ushort' if cbase == 'ushort' else 'uint'
-            args = [T] + (['int'] if depth else []) + [icoordty(d, cbase)]
+            args = [T] + (['int'] if depth else []) + [icoordty(cd, cbase)]
             call = ['__t'] + (['1'] if depth else []) + ['c']
             if cube:
                 args += [ity]; call += ['face']
@@ -701,11 +761,12 @@ for cls, op, d in TEX:
         tw(f'  {rt} read({", ".join(ps)}) const {{ ' + ' else '.join(body) + ' }')
     # write
     if not depth and not ms:
-        ps = [f'typename __texel<T>::v4 v', f'{icoordty(d)} c'] + (['uint slice'] if arr else []) + (['uint face'] if cube else []) + ([] if buf else ['uint lod = 0'])
+        wd = 2 if cube else d
+        ps = [f'typename __texel<T>::v4 v', f'{icoordty(wd)} c'] + (['uint slice'] if arr else []) + (['uint face'] if cube else []) + ([] if buf else ['uint lod = 0'])
         body = []
         for et, sf, vt in elems:
             name = f'air.write_{op}.{sf}'
-            args = [T, icoordty(d)] + (['uint'] if cube else []) + (['uint'] if arr else []) + [vt] + ([] if buf else ['uint']) + ['int']
+            args = [T, icoordty(wd)] + (['uint'] if cube else []) + (['uint'] if arr else []) + [vt] + ([] if buf else ['uint']) + ['int']
             c = air(name, 'void', args, pure=False)
             call = ['__t', 'c'] + (['face'] if cube else []) + (['slice'] if arr else []) + ['v'] + ([] if buf else ['lod']) + ['(int)A']
             body.append(f'if constexpr (__is_same(T, {et})) {c}({", ".join(call)});')
@@ -763,22 +824,38 @@ w(f'inline void simdgroup_barrier(unsigned flags) {{ {air_simd}(flags, 1); }}')
 air_disc = air('air.discard_fragment', 'void', [], pure=False)
 w(f'inline void discard_fragment() {{ {air_disc}(); }}')
 
-# atomics: air.atomic.<global|local>.<op>.<s|u>.i32(ptr, val, order, scope, volatile)
-for asn, space in (('__global', 'global'), ('__local', 'local')):
-    for t, k, sf in (('int', 's', 'i32'), ('uint', 'u', 'i32')):
-        p = f'{asn} {t} *'
-        for op in ('add', 'sub', 'and', 'or', 'xor', 'min', 'max'):
-            c = air(f'air.atomic.{space}.{op}.{k}.{sf}', t, [p, t, 'int', 'int', 'bool'], pure=False)
-            w(f'inline {t} atomic_fetch_{op}_explicit({asn} volatile _atomic<{t}> *o, {t} v, memory_order mo) {{ return {c}(({p})&o->__s, v, (int)mo, 2, true); }}')
-            w(f'inline {t} atomic_fetch_{op}_explicit({asn} _atomic<{t}> *o, {t} v, memory_order mo) {{ return {c}(({p})&o->__s, v, (int)mo, 2, true); }}')
-        c = air(f'air.atomic.{space}.xchg.{sf}', t, [p, t, 'int', 'int', 'bool'], pure=False)
-        w(f'inline {t} atomic_exchange_explicit({asn} _atomic<{t}> *o, {t} v, memory_order mo) {{ return {c}(({p})&o->__s, v, (int)mo, 2, true); }}')
-        c = air(f'air.atomic.{space}.load.{sf}', t, [p, 'int', 'int', 'bool'], pure=False)
-        w(f'inline {t} atomic_load_explicit({asn} _atomic<{t}> *o, memory_order mo) {{ return {c}(({p})&o->__s, (int)mo, 2, true); }}')
-        c = air(f'air.atomic.{space}.store.{sf}', 'void', [p, t, 'int', 'int', 'bool'], pure=False)
-        w(f'inline void atomic_store_explicit({asn} _atomic<{t}> *o, {t} v, memory_order mo) {{ {c}(({p})&o->__s, v, (int)mo, 2, true); }}')
-        c = air(f'air.atomic.{space}.cmpxchg.weak.{sf}', t, [p, f'{t} *', t, 'int', 'int', 'int', 'bool'], pure=False)
-        w(f'inline bool atomic_compare_exchange_weak_explicit({asn} _atomic<{t}> *o, {t} *e, {t} d, memory_order s, memory_order f) {{ {t} old = *e; {t} r = {c}(({p})&o->__s, e, d, (int)s, (int)f, 2, true); return r == old; }}')
+# atomics: air.atomic.<global|local>.<op>.<s|u|f>.<type>(ptr, val, order, scope, volatile). The stdlib calls
+# "xt.atomic.<op>..." with a generic pointer; xtmetal picks global/local (and the scope) from the pointer's
+# inferred address space.
+ATOMIC_TYPES = [('int', 's', 'i32'), ('uint', 'u', 'i32'), ('long', 's', 'i64'), ('ulong', 'u', 'i64')]
+for t, k, sf in ATOMIC_TYPES + [('float', 'f', 'f32')]:
+    p = f'{t} *'
+    ops = ('add', 'sub', 'and', 'or', 'xor', 'min', 'max') if t != 'float' else ('add', 'sub', 'min', 'max')
+    for op in ops:
+        c = air(f'xt.atomic.{op}.{k}.{sf}', t, [p, t, 'int', 'int', 'bool'], pure=False)
+        for cv in ('', 'volatile '):
+            w(f'inline {t} atomic_fetch_{op}_explicit({cv}_atomic<{t}> *o, {t} v, memory_order mo) {{ return {c}(({p})&o->__s, v, (int)mo, 0, true); }}')
+            w(f'inline {t} atomic_fetch_{op}_explicit({cv}_atomic<{t}> *o, {t} v, memory_order mo, thread_scope) {{ return {c}(({p})&o->__s, v, (int)mo, 0, true); }}')
+        if sf.endswith('64') and op in ('min', 'max'):
+            cv64 = air(f'xt.atomic.{op}.{k}.{sf}.void', 'void', [p, t, 'int', 'int', 'bool'], pure=False)
+            w(f'inline void atomic_{op}_explicit(_atomic<{t}> *o, {t} v, memory_order mo) {{ {cv64}(({p})&o->__s, v, (int)mo, 0, true); }}')
+    tsf = sf
+    c = air(f'xt.atomic.xchg.{tsf}', t, [p, t, 'int', 'int', 'bool'], pure=False)
+    w(f'inline {t} atomic_exchange_explicit(_atomic<{t}> *o, {t} v, memory_order mo) {{ return {c}(({p})&o->__s, v, (int)mo, 0, true); }}')
+    w(f'inline {t} atomic_exchange_explicit(volatile _atomic<{t}> *o, {t} v, memory_order mo) {{ return {c}(({p})&o->__s, v, (int)mo, 0, true); }}')
+    c = air(f'xt.atomic.load.{tsf}', t, [p, 'int', 'int', 'bool'], pure=False)
+    w(f'inline {t} atomic_load_explicit(const _atomic<{t}> *o, memory_order mo) {{ return {c}(({p})&o->__s, (int)mo, 0, true); }}')
+    w(f'inline {t} atomic_load_explicit(const volatile _atomic<{t}> *o, memory_order mo) {{ return {c}(({p})&o->__s, (int)mo, 0, true); }}')
+    c = air(f'xt.atomic.store.{tsf}', 'void', [p, t, 'int', 'int', 'bool'], pure=False)
+    w(f'inline void atomic_store_explicit(_atomic<{t}> *o, {t} v, memory_order mo) {{ {c}(({p})&o->__s, v, (int)mo, 0, true); }}')
+    w(f'inline void atomic_store_explicit(volatile _atomic<{t}> *o, {t} v, memory_order mo) {{ {c}(({p})&o->__s, v, (int)mo, 0, true); }}')
+    c = air(f'xt.atomic.cmpxchg.weak.{tsf}', t, [p, f'{t} *', t, 'int', 'int', 'int', 'bool'], pure=False)
+    for cv in ('', 'volatile '):
+        w(f'inline bool atomic_compare_exchange_weak_explicit({cv}_atomic<{t}> *o, {t} *e, {t} d, memory_order s, memory_order f) {{ {t} old = *e; {t} r = {c}(({p})&o->__s, e, d, (int)s, (int)f, 0, true); return r == old; }}')
+# bool atomics are stored as uint-sized? (MSL atomic_bool) - rarely used; map to uint exchange/load/store
+w('''inline bool atomic_load_explicit(const _atomic<bool> *o, memory_order mo) { return atomic_load_explicit((const _atomic<uint> *)o, mo) != 0; }
+inline void atomic_store_explicit(_atomic<bool> *o, bool v, memory_order mo) { atomic_store_explicit((_atomic<uint> *)o, (uint)v, mo); }
+inline bool atomic_exchange_explicit(_atomic<bool> *o, bool v, memory_order mo) { return atomic_exchange_explicit((_atomic<uint> *)o, (uint)v, mo) != 0; }''')
 
 # simd-group reductions and shuffles
 for op in ('sum', 'product', 'min', 'max', 'prefix_inclusive_sum', 'prefix_exclusive_sum', 'prefix_inclusive_product', 'prefix_exclusive_product'):
@@ -799,11 +876,63 @@ for op, extra in (('shuffle', 'ushort'), ('shuffle_xor', 'ushort'), ('shuffle_up
             k = '' if s in FLOATS else f'{kind(s)}.'
             c = air(f'air.simd_{op}.{k}{sf}', ty, [ty, extra], pure=False)
             w(f'inline {ty} simd_{op}({ty} x, {extra} l) {{ return {c}(x, l); }}')
-c = air('air.simd_broadcast_first.f32', 'float', ['float'], pure=False)
-w(f'inline float simd_broadcast_first(float x) {{ return {c}(x); }}')
 c = air('air.simd_all', 'bool', ['bool'], pure=False); w(f'inline bool simd_all(bool x) {{ return {c}(x); }}')
 c = air('air.simd_any', 'bool', ['bool'], pure=False); w(f'inline bool simd_any(bool x) {{ return {c}(x); }}')
 c = air('air.simd_is_first', 'bool', [], pure=False); w(f'inline bool simd_is_first() {{ return {c}(); }}')
+for op in ('and', 'or', 'xor'):
+    for s_ in ['int', 'uint', 'short', 'ushort']:
+        for n in [1] + VEC:
+            ty = tname(s_, n); sf = suffix(s_, n)
+            c = air(f'air.simd_{op}.{kind(s_)}.{sf}', ty, [ty], pure=False)
+            w(f'inline {ty} simd_{op}({ty} x) {{ return {c}(x); }}')
+for op in ('shuffle_rotate_down', 'shuffle_rotate_up', 'shuffle_and_fill_down', 'shuffle_and_fill_up'):
+    for s_ in ['float', 'half', 'int', 'uint']:
+        for n in [1] + VEC:
+            ty = tname(s_, n); sf = suffix(s_, n)
+            k_ = '' if s_ in FLOATS else f'{kind(s_)}.'
+            if 'fill' in op:
+                continue
+            c = air(f'air.simd_{op}.{k_}{sf}', ty, [ty, 'ushort'], pure=False)
+            w(f'inline {ty} simd_{op}({ty} x, ushort d) {{ return {c}(x, d); }}')
+for op in ('sum', 'product', 'min', 'max'):
+    for s_ in ['float', 'half', 'int', 'uint']:
+        for n in [1] + VEC:
+            ty = tname(s_, n); sf = suffix(s_, n)
+            k_ = '' if s_ in FLOATS else f'{kind(s_)}.'
+            c = air(f'air.quad_{op}.{k_}{sf}', ty, [ty], pure=False)
+            w(f'inline {ty} quad_{op}({ty} x) {{ return {c}(x); }}')
+for op in ('shuffle', 'shuffle_xor', 'shuffle_up', 'shuffle_down', 'broadcast'):
+    for s_ in ['float', 'half', 'int', 'uint']:
+        for n in [1] + VEC:
+            ty = tname(s_, n); sf = suffix(s_, n)
+            k_ = '' if s_ in FLOATS else f'{kind(s_)}.'
+            c = air(f'air.quad_{op}.{k_}{sf}', ty, [ty, 'ushort'], pure=False)
+            w(f'inline {ty} quad_{op}({ty} x, ushort l) {{ return {c}(x, l); }}')
+for nm in ('all', 'any'):
+    c = air(f'air.quad_{nm}', 'bool', ['bool'], pure=False); w(f'inline bool quad_{nm}(bool x) {{ return {c}(x); }}')
+c = air('air.simd_ballot.i64', 'ulong', ['bool'], pure=False)
+w(f'struct simd_vote {{ ulong v; explicit operator ulong() const {{ return v; }} bool all() const {{ return v == ~0ul; }} bool any() const {{ return v != 0; }} }};')
+w(f'inline simd_vote simd_ballot(bool x) {{ return simd_vote{{{c}(x)}}; }}')
+c = air('air.simd_active_threads_mask.i64', 'ulong', [], pure=False)
+w(f'inline simd_vote simd_active_threads_mask() {{ return simd_vote{{{c}()}}; }}')
+for s_ in ['float', 'half', 'int', 'uint']:
+    for n in [1] + VEC:
+        ty = tname(s_, n); sf = suffix(s_, n)
+        k_ = '' if s_ in FLOATS else f'{kind(s_)}.'
+        c = air(f'air.simd_broadcast_first.{k_}{sf}', ty, [ty], pure=False)
+        w(f'inline {ty} simd_broadcast_first({ty} x) {{ return {c}(x); }}')
+# pack / unpack
+for nm, ret, arg in (('unorm4x8', 'uint', 'float4'), ('snorm4x8', 'uint', 'float4'), ('unorm2x16', 'uint', 'float2'), ('snorm2x16', 'uint', 'float2')):
+    c = air(f'air.pack.{nm}.{suffix(arg[:-1], int(arg[-1]))}', ret, [arg])
+    w(f'inline uint pack_float_to_{nm}({arg} v) {{ return {c}(v); }}')
+    harg = 'half' + arg[-1]
+    c = air(f'air.pack.{nm}.{suffix("half", int(arg[-1]))}', ret, [harg])
+    w(f'inline uint pack_half_to_{nm}({harg} v) {{ return {c}(v); }}')
+    c = air(f'air.unpack.{nm}.{suffix(arg[:-1], int(arg[-1]))}', arg, ['uint'])
+    w(f'inline {arg} unpack_{nm}_to_float(uint v) {{ return {c}(v); }}')
+    c = air(f'air.unpack.{nm}.{suffix("half", int(arg[-1]))}', harg, ['uint'])
+    w(f'inline {harg} unpack_{nm}_to_half(uint v) {{ return {c}(v); }}')
+
 w('} // namespace metal')
 
 # ------------------------------------------------------------------------------------------------- epilogue
@@ -821,7 +950,11 @@ for alias in ['metal_math', 'metal_common', 'metal_geometric', 'metal_relational
               'metal_pack', 'metal_numeric', 'metal_utility', 'metal_array', 'metal_limits', 'metal_type_traits']:
     open(os.path.join(OUT, alias), 'w').write('#include <metal_stdlib>\n')
 os.makedirs(os.path.join(OUT, 'simd'), exist_ok=True)
-open(os.path.join(OUT, 'simd', 'simd.h'), 'w').write('#include <metal_stdlib>\n')
+open(os.path.join(OUT, 'simd', 'simd.h'), 'w').write('#include <metal_stdlib>\n#include <simd_ns.h>\n')
 for h in ['vector_types.h', 'vector.h', 'matrix.h', 'matrix_types.h', 'base.h', 'types.h', 'math.h', 'common.h', 'geometry.h', 'packed.h']:
     open(os.path.join(OUT, 'simd', h), 'w').write('#include <metal_stdlib>\n')
+import shutil
+extra = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'extra')
+for name in os.listdir(extra):
+    shutil.copy(os.path.join(extra, name), os.path.join(OUT, name))
 print(f'wrote {len(decls)} intrinsic declarations')

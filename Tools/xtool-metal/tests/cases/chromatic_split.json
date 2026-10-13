@@ -1,0 +1,1 @@
+{"shader": "swiftui_effects", "kind": "visible", "effect": "layer", "noBounds": true, "function": "chromatic_split", "width": 64, "height": 64, "args": [3.0]}

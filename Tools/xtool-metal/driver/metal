@@ -102,6 +102,8 @@ def compile_one(opts, src, out):
             cmd.append(f'-D{plat}=1')
         if fast:
             cmd.append('-D__FAST_MATH__=1')
+        if env == '-simulator':
+            cmd.append('-D__XT_SIMULATOR__=1')
         for k, v in opts['defines']:
             cmd.append(f'-{k}{v}')
         for i in opts['includes']:
@@ -219,6 +221,9 @@ def parse(argv, tool):
 def main():
     tool = os.path.basename(sys.argv[0])
     argv = sys.argv[1:]
+    if os.environ.get('XTMETAL_LOG'):
+        with open(os.environ['XTMETAL_LOG'], 'a') as f:
+            f.write(' '.join([tool] + argv) + '\n')
     if argv and argv[0] in ('--version', '-v'):
         print('Apple metal version 32023.883 (xtmetal compatible)\nTarget: air64-apple-darwin\nThread model: posix')
         return 0

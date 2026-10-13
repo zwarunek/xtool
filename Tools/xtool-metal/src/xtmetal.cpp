@@ -46,6 +46,8 @@
 #include "llvm/Transforms/IPO/GlobalDCE.h"
 #include "llvm/Transforms/Scalar/InferAddressSpaces.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
+#include "llvm/Support/Path.h"
 
 #include <functional>
 #include <map>
@@ -56,6 +58,10 @@
 
 using namespace llvm;
 namespace ca = clang;
+#ifdef XT_PATCHED_CLANG
+// Set to enable the MSL semantics patched into clang (clang-patches/apply.py).
+namespace clang { extern bool XtMSL; }
+#endif
 
 static const char *kAirDataLayout =
     "e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:64:64-f32:32:32-f64:64:64-v16:16:16-v24:32:32-v32:32:32-"
@@ -124,6 +130,7 @@ struct ValueType {     // the IR type of one flattened AIR value
   std::string opaque;  // "struct._texture_2d_t"
   unsigned addrSpace = 0;
   unsigned arrayLen = 0; // for arrays of scalars/vectors (e.g. clip_distance)
+  bool fromStruct = false; // IR type is the user function's struct element at this offset
 };
 
 struct FlatField {     // one AIR argument or return element carved out of a struct in memory
@@ -139,6 +146,7 @@ struct ArgDesc {
   uint64_t size = 0, align = 1;   // for Memory args: the size of the in-memory value
   std::vector<FlatField> fields;  // Direct args: one field whose md describes it
   bool isResource = false;
+  std::string stitchStructBase;   // visible struct arguments: stitching trait name prefix
 };
 
 enum class EntryKind { Vertex, Fragment, Kernel, Visible, Mesh, Object };
@@ -334,8 +342,13 @@ public:
       }
     }
     if (auto *RT = T->getAs<ca::RecordType>()) {
-      std::string n = RT->getDecl()->getName().str();
-      return std::to_string(n.size()) + n;
+      std::vector<std::string> parts;
+      parts.push_back(RT->getDecl()->getName().str());
+      for (auto *DC = RT->getDecl()->getDeclContext(); DC; DC = DC->getParent())
+        if (auto *NS = dyn_cast<ca::NamespaceDecl>(DC)) parts.insert(parts.begin(), NS->getName().str());
+      std::string m;
+      for (auto &p : parts) m += std::to_string(p.size()) + p;
+      return parts.size() > 1 ? "N" + m + "E" : m;
     }
     return "v";
   }
@@ -504,6 +517,29 @@ public:
 
   MD airTypeDesc(ca::QualType T) {
     T = T.getCanonicalType();
+    if (auto *AT = dyn_cast<ca::ConstantArrayType>(T.getTypePtr()))
+      return MD::node({MD::str("air.array_type"), MD::i32(sizeOf(T)), MD::i32(alignOf(T)), MD::null(),
+                       airTypeDesc(AT->getElementType()), MD::i32(AT->getSize().getZExtValue())});
+    ResourceInfo ri;
+    if (resourceInfo(T, ri) && ri.kind == "texture") {
+      auto *args = templateArgs(T);
+      std::string op = ri.opaque.substr(1, ri.opaque.size() - 3); // _texture_2d_t -> texture_2d
+      return MD::node({MD::str("air." + op + "_type"), MD::i32(8), MD::i32(8), MD::null(),
+                       airTypeDesc(args->get(0).getAsType()),
+                       MD::str(accessName(args->size() >= 2 ? args->get(1).getAsIntegral().getSExtValue() : 0))});
+    }
+    if (auto *RD = T->getAsRecordDecl(); RD && !T->getAs<ca::ExtVectorType>()) {
+      MD fields = MD::node();
+      const ca::ASTRecordLayout &L = Ctx.getASTRecordLayout(RD);
+      int idx = 0;
+      for (auto *F : RD->fields()) {
+        uint64_t off = L.getFieldOffset(idx++) / 8;
+        fields.add(MD::node({MD::str("air.record_field"), MD::i32(off), MD::i32(sizeOf(F->getType())),
+                             airTypeDesc(F->getType()), MD::str(F->getName().str()), MD::null()}));
+      }
+      return MD::node({MD::str("air.struct_type"), MD::i32(sizeOf(T)), MD::i32(alignOf(T)), MD::null(),
+                       MD::str(recordName(RD)), fields});
+    }
     if (auto *VT = T->getAs<ca::ExtVectorType>()) {
       return MD::node({MD::str("air.vector_type"), MD::i32(sizeOf(T)), MD::i32(alignOf(T)), MD::null(),
                        airTypeDesc(VT->getElementType()), MD::i32(VT->getNumElements())});
@@ -539,13 +575,15 @@ public:
       vt.isPtr = true;
       vt.addrSpace = airAS(PT->getPointeeType().getAddressSpace());
       vt.opaque = "ptr:" + code;
+    } else if (T->getAsRecordDecl() && !T->getAs<ca::ExtVectorType>()) {
+      vt.opaque = "struct";
     } else if (!valueType(T, vt)) {
       return MD::null();
     }
     bool have = false;
     for (auto &st : E.stitchTypes) if (st.first == base) have = true;
     if (!have) E.stitchTypes.push_back({base, vt});
-    std::string ret = (vt.isPtr ? "S2_" : (vt.vec ? "S1_" : code));
+    std::string ret = (vt.isPtr || vt.opaque == "struct" ? "S2_" : (vt.vec ? "S1_" : code));
     return MD::node({MD::str("air.stitching_type"), airTypeDesc(T), MD::func(base + "13load_argumentEPv"),
                      MD::func(base + "18store_return_valueEPv" + ret), MD::func(base + "7destroyEPv"),
                      MD::func(base + "16copy_from_bufferEPvPU11MTLconstantKv")});
@@ -670,6 +708,27 @@ public:
         if (resourceInfo(CT, ri)) {
           A.kind = ArgKind::Memory; A.isResource = true; A.size = sizeOf(CT); A.align = alignOf(CT);
           ff.type.isPtr = true; ff.type.opaque = "struct." + ri.opaque; ff.type.addrSpace = ri.as;
+        } else if (auto *SRD = CT->getAsRecordDecl(); SRD && !CT->getAs<ca::ExtVectorType>()) {
+          // Struct arguments (e.g. SwiftUI::Layer) are passed as one AIR argument per field.
+          airIndex--;
+          A.kind = ArgKind::Memory; A.size = sizeOf(CT); A.align = alignOf(CT);
+          const ca::ASTRecordLayout &L = Ctx.getASTRecordLayout(SRD);
+          int fidx = 0;
+          for (auto *F : SRD->fields()) {
+            FlatField sf;
+            sf.offset = L.getFieldOffset(fidx++) / 8;
+            sf.type.fromStruct = true;
+            sf.md = MD::node({MD::i32(airIndex++), MD::str("air.visible_input"), MD::str("air.arg_type_name"),
+                              MD::str(mslName(F->getType())), MD::str("air.arg_name"), MD::str(F->getName().str())});
+            A.fields.push_back(sf);
+          }
+          if (E.stitchable) {
+            MD st = stitchingType(E, T);
+            A.stitchStructBase = "_ZN5metal22_stitching_traits_implI" + mangleCode(CT) + "E";
+            stitchArgs.add(MD::node({MD::str("air.stitching_argument"), st, MD::str(pname)}));
+          }
+          E.args.push_back(A);
+          continue;
         } else if (!CT->isPointerType() && !CT->isReferenceType()) {
           if (!valueType(CT, ff.type)) {
             A.kind = ArgKind::Memory; A.size = sizeOf(CT); A.align = alignOf(CT);
@@ -933,6 +992,31 @@ struct Lowering {
 
     bool sret = U->arg_size() > 0 && U->hasParamAttribute(0, Attribute::StructRet);
     unsigned uarg = sret ? 1 : 0;
+    // Struct-element types for fields passed one per AIR argument.
+    std::map<std::pair<unsigned, unsigned>, Type *> structFieldTy;
+    for (unsigned i = 0; i < E.args.size(); ++i) {
+      auto &A = E.args[i];
+      for (unsigned f = 0; f < A.fields.size(); ++f) {
+        if (!A.fields[f].type.fromStruct) continue;
+        Type *PT = U->getFunctionType()->getParamType(uarg + i);
+        StructType *ST = nullptr;
+        if (U->hasParamAttribute(uarg + i, Attribute::ByVal)) ST = dyn_cast<StructType>(U->getParamByValType(uarg + i));
+        else if (PT->isPointerTy()) ST = dyn_cast<StructType>(PT->getNonOpaquePointerElementType());
+        if (!ST) die("entry point '" + E.name + "': cannot find the struct type of argument " + Twine(i));
+        const StructLayout *SL = M.getDataLayout().getStructLayout(ST);
+        unsigned idx = SL->getElementContainingOffset(A.fields[f].offset);
+        if (SL->getElementOffset(idx) != A.fields[f].offset) die("entry point '" + E.name + "': struct field layout mismatch");
+        structFieldTy[{i, f}] = ST->getElementType(idx);
+      }
+    }
+    auto fieldType = [&](unsigned i, unsigned f) -> Type * {
+      auto it = structFieldTy.find({i, f});
+      return it != structFieldTy.end() ? it->second : irType(M, E.args[i].fields[f].type);
+    };
+    auto fieldMemType = [&](unsigned i, unsigned f) -> Type * {
+      auto it = structFieldTy.find({i, f});
+      return it != structFieldTy.end() ? it->second : memType(M, E.args[i].fields[f].type);
+    };
 
     // AIR parameter types
     std::vector<Type *> params;
@@ -945,7 +1029,7 @@ struct Lowering {
         argMap.push_back({i, 0});
       } else {
         for (unsigned f = 0; f < A.fields.size(); ++f) {
-          params.push_back(irType(M, A.fields[f].type));
+          params.push_back(fieldType(i, f));
           argMap.push_back({i, f});
         }
       }
@@ -994,9 +1078,9 @@ struct Lowering {
         continue;
       }
       Value *mem = allocaBytes(B, F, A.size, A.align);
-      for (auto &f : A.fields) {
+      for (unsigned f = 0; f < A.fields.size(); ++f) {
         Value *v = F->getArg(airArg++);
-        storeAt(B, mem, f.offset, v, memType(M, f.type));
+        storeAt(B, mem, A.fields[f].offset, v, fieldMemType(i, f));
       }
       if (U->hasParamAttribute(uarg + i, Attribute::ByVal) || UT->isPointerTy()) {
         callArgs.push_back(B.CreatePointerBitCastOrAddrSpaceCast(mem, UT));
@@ -1033,12 +1117,59 @@ struct Lowering {
     return F;
   }
 
+  void structTraits(EntryDesc &E, const std::string &base) {
+    LLVMContext &C = M.getContext();
+    Function *U = M.getFunction("__xt_user." + E.name);
+    if (!U) return;
+    bool sret = U->arg_size() > 0 && U->hasParamAttribute(0, Attribute::StructRet);
+    unsigned uarg = sret ? 1 : 0;
+    StructType *ST = nullptr;
+    for (unsigned i = 0; i < E.args.size(); ++i)
+      if (E.args[i].stitchStructBase == base) {
+        if (U->hasParamAttribute(uarg + i, Attribute::ByVal)) ST = dyn_cast<StructType>(U->getParamByValType(uarg + i));
+        else ST = dyn_cast<StructType>(U->getFunctionType()->getParamType(uarg + i)->getNonOpaquePointerElementType());
+      }
+    if (!ST) return;
+    const StructLayout *SL = M.getDataLayout().getStructLayout(ST);
+    Type *i8p = Type::getInt8PtrTy(C);
+    auto mk = [&](const std::string &n, FunctionType *FT) -> Function * {
+      if (M.getFunction(n)) return nullptr;
+      Function *F = Function::Create(FT, GlobalValue::LinkOnceODRLinkage, n, M);
+      F->setVisibility(GlobalValue::HiddenVisibility);
+      F->addFnAttr(Attribute::NoUnwind);
+      return F;
+    };
+    if (Function *F = mk(base + "13load_argumentEPv", FunctionType::get(ST, {i8p}, false))) {
+      IRBuilder<> B(BasicBlock::Create(C, "", F));
+      B.CreateRet(B.CreateLoad(ST, B.CreateBitCast(F->getArg(0), PointerType::get(ST, 0))));
+    }
+    std::vector<Type *> ps = {i8p};
+    for (Type *T : ST->elements()) ps.push_back(T);
+    if (Function *F = mk(base + "18store_return_valueEPvS2_", FunctionType::get(Type::getVoidTy(C), ps, false))) {
+      IRBuilder<> B(BasicBlock::Create(C, "", F));
+      for (unsigned e = 0; e < ST->getNumElements(); ++e)
+        storeAt(B, F->getArg(0), SL->getElementOffset(e), F->getArg(e + 1), ST->getElementType(e));
+      B.CreateRetVoid();
+    }
+    if (Function *F = mk(base + "7destroyEPv", FunctionType::get(Type::getVoidTy(C), {i8p}, false))) {
+      IRBuilder<> B(BasicBlock::Create(C, "", F));
+      B.CreateRetVoid();
+    }
+    if (Function *F = mk(base + "16copy_from_bufferEPvPU11MTLconstantKv", FunctionType::get(Type::getVoidTy(C), {i8p, Type::getInt8PtrTy(C, 2)}, false))) {
+      IRBuilder<> B(BasicBlock::Create(C, "", F));
+      Value *v = B.CreateLoad(ST, B.CreateBitCast(F->getArg(1), PointerType::get(ST, 2)));
+      B.CreateStore(v, B.CreateBitCast(F->getArg(0), PointerType::get(ST, 0)));
+      B.CreateRetVoid();
+    }
+  }
+
   void stitchTraits(EntryDesc &E) {
     LLVMContext &C = M.getContext();
     Type *i8p = Type::getInt8PtrTy(C);
     Type *cp = Type::getInt8PtrTy(C, 2);
     for (auto &st : E.stitchTypes) {
       const std::string &base = st.first;
+      if (st.second.opaque == "struct") { structTraits(E, base); continue; }
       Type *T;
       if (st.second.isPtr) T = PointerType::get(Type::getFloatTy(C), st.second.addrSpace);
       else T = irType(M, st.second);
@@ -1254,6 +1385,111 @@ static void dropForeignLifetimes(Module &M) {
   for (auto *I : dead) I->eraseFromParent();
 }
 
+
+// Atomics are declared in the stdlib as "xt.atomic.<op>..." on generic pointers; once address spaces are
+// inferred, pick air.atomic.global/local (scope device/threadgroup) from the pointer's real address space.
+static void lowerAtomics(Module &M) {
+  std::vector<CallInst *> calls;
+  for (Function &F : M)
+    for (Instruction &I : instructions(F))
+      if (auto *CI = dyn_cast<CallInst>(&I))
+        if (Function *Callee = CI->getCalledFunction())
+          if (Callee->getName().startswith("xt.atomic.")) calls.push_back(CI);
+  for (CallInst *CI : calls) {
+    StringRef rest = CI->getCalledFunction()->getName().drop_front(10);
+    bool toVoid = rest.endswith(".void");
+    if (toVoid) rest = rest.drop_back(5);
+    std::vector<Value *> args;
+    std::vector<Type *> types;
+    for (Value *A : CI->args()) {
+      if (A->getType()->isPointerTy()) {
+        Value *U = A->stripPointerCasts();
+        if (U->getType()->getPointerAddressSpace() == 4) die("atomic on a pointer whose address space is unknown");
+        Type *Elem = A->getType()->getNonOpaquePointerElementType();
+        IRBuilder<> B(CI);
+        A = B.CreateBitCast(U, PointerType::get(Elem, U->getType()->getPointerAddressSpace()));
+      }
+      args.push_back(A);
+      types.push_back(A->getType());
+    }
+    unsigned as = args[0]->getType()->getPointerAddressSpace();
+    std::string space = as == 1 ? "global" : as == 3 ? "local" : "";
+    if (space.empty()) die("atomic operation on memory that is neither device nor threadgroup");
+    if (args.size() >= 2) args[args.size() - 2] = ConstantInt::get(Type::getInt32Ty(M.getContext()), as == 1 ? 2 : 1);
+    Type *RT = toVoid ? Type::getVoidTy(M.getContext()) : CI->getType();
+    FunctionCallee fc = M.getOrInsertFunction(("air.atomic." + space + "." + rest).str(), FunctionType::get(RT, types, false));
+    IRBuilder<> B(CI);
+    CallInst *NC = B.CreateCall(fc, args);
+    if (!toVoid) CI->replaceAllUsesWith(NC);
+    else if (!CI->use_empty()) CI->replaceAllUsesWith(UndefValue::get(CI->getType()));
+    CI->eraseFromParent();
+  }
+  for (auto it = M.begin(); it != M.end();) {
+    Function &F = *it++;
+    if (F.isDeclaration() && F.getName().startswith("xt.atomic.") && F.use_empty()) F.eraseFromParent();
+  }
+}
+
+// is_function_constant_defined(x) is "xt.fc_defined"(&x); Apple's form is air.is_function_constant_defined on
+// the constant's MTL_FC_INIT global.
+static void lowerFunctionConstantQueries(Module &M) {
+  Function *F = M.getFunction("xt.fc_defined");
+  if (!F) return;
+  LLVMContext &C = M.getContext();
+  FunctionCallee fc = M.getOrInsertFunction("air.is_function_constant_defined",
+                                            FunctionType::get(Type::getInt1Ty(C), {Type::getInt8PtrTy(C, 2)}, false));
+  std::vector<CallInst *> calls;
+  for (User *U : F->users()) if (auto *CI = dyn_cast<CallInst>(U)) calls.push_back(CI);
+  for (CallInst *CI : calls) {
+    Value *P = CI->getArgOperand(0)->stripPointerCasts();
+    IRBuilder<> B(CI);
+    Value *Arg = B.CreatePointerBitCastOrAddrSpaceCast(P, Type::getInt8PtrTy(C, 2));
+    Value *R = B.CreateCall(fc, {Arg});
+    if (CI->getType() != R->getType()) R = B.CreateZExt(R, CI->getType());
+    CI->replaceAllUsesWith(R);
+    CI->eraseFromParent();
+  }
+  F->eraseFromParent();
+}
+
+
+// Re-point uses of a global at a same-typed global in another address space (loads, GEPs, bitcasts).
+static void replacePointerAS(Value *Old, Value *New) {
+  std::vector<User *> users(Old->user_begin(), Old->user_end());
+  for (User *U : users) {
+    if (auto *LI = dyn_cast<LoadInst>(U)) {
+      IRBuilder<> B(LI);
+      LoadInst *NL = B.CreateLoad(LI->getType(), New);
+      NL->setAlignment(LI->getAlign());
+      LI->replaceAllUsesWith(NL);
+      LI->eraseFromParent();
+    } else if (auto *GEP = dyn_cast<GetElementPtrInst>(U)) {
+      IRBuilder<> B(GEP);
+      std::vector<Value *> idx(GEP->idx_begin(), GEP->idx_end());
+      Value *NG = B.CreateGEP(GEP->getSourceElementType(), New, idx);
+      replacePointerAS(GEP, NG);
+      if (GEP->use_empty()) GEP->eraseFromParent();
+    } else if (auto *BC = dyn_cast<BitCastInst>(U)) {
+      IRBuilder<> B(BC);
+      Value *NB = B.CreateBitCast(New, PointerType::get(BC->getType()->getNonOpaquePointerElementType(), New->getType()->getPointerAddressSpace()));
+      replacePointerAS(BC, NB);
+      if (BC->use_empty()) BC->eraseFromParent();
+    } else if (auto *CE = dyn_cast<ConstantExpr>(U)) {
+      auto *NC = cast<Constant>(New);
+      Constant *R = nullptr;
+      if (CE->getOpcode() == Instruction::GetElementPtr) {
+        auto *GO = cast<GEPOperator>(CE);
+        std::vector<Constant *> idx;
+        for (auto I = GO->idx_begin(); I != GO->idx_end(); ++I) idx.push_back(cast<Constant>(*I));
+        R = ConstantExpr::getGetElementPtr(GO->getSourceElementType(), NC, idx, GO->isInBounds());
+      } else if (CE->getOpcode() == Instruction::BitCast) {
+        R = ConstantExpr::getBitCast(NC, PointerType::get(CE->getType()->getNonOpaquePointerElementType(), NC->getType()->getPointerAddressSpace()));
+      }
+      if (R) replacePointerAS(CE, R);
+    }
+  }
+}
+
 static void runPasses(Module &M, bool inlineAll) {
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
@@ -1418,6 +1654,9 @@ static int cmdCompile(int argc, char **argv) {
   args.push_back(input);
   std::vector<const char *> cargs;
   for (auto &a : args) cargs.push_back(a.c_str());
+#ifdef XT_PATCHED_CLANG
+  clang::XtMSL = true;
+#endif
 
   auto CI = std::make_unique<ca::CompilerInstance>();
   IntrusiveRefCntPtr<ca::DiagnosticOptions> DO = new ca::DiagnosticOptions();
@@ -1473,26 +1712,60 @@ static int cmdCompile(int argc, char **argv) {
     auto *G = new GlobalVariable(*M, AT, false, GlobalValue::AppendingLinkage, ConstantArray::get(AT, keepCasts), "llvm.compiler.used");
     G->setSection("llvm.metadata");
   }
-  // Function constants: AIR reads them from "<mangled>.MTL_FC_INIT_<index>_<code>" globals.
-  for (auto &FC : R.constants) {
-    GlobalVariable *G = M->getGlobalVariable(FC.var, true);
-    if (!G) continue;
-    Type *T = G->getValueType();
-    std::string code = FC.typeName == "bool" ? "b" : FC.typeName == "float" ? "f" : FC.typeName == "int" ? "i" :
-                       FC.typeName == "uint" ? "j" : FC.typeName == "half" ? "Dh" : FC.typeName == "short" ? "s" :
-                       FC.typeName == "ushort" ? "t" : FC.typeName;
-    std::string init = FC.var + ".MTL_FC_INIT_" + std::to_string(FC.index) + "_" + code;
-    auto *I = new GlobalVariable(*M, T, true, GlobalValue::LinkOnceODRLinkage, UndefValue::get(T), init, nullptr,
-                                 GlobalValue::NotThreadLocal, 2, true);
-    I->setVisibility(GlobalValue::HiddenVisibility);
-    I->setAlignment(G->getAlign() ? *G->getAlign() : Align(4));
-    // Reads of the user global become loads of the init global.
-    G->replaceAllUsesWith(ConstantExpr::getPointerBitCastOrAddrSpaceCast(I, G->getType()));
-    G->eraseFromParent();
+  // Function constants, the way Apple's compiler lays them out: code reads an internal addrspace(2) global
+  // "_ZL<name>"; a static initializer (section air.static_init) copies the specialized value from the
+  // externally initialized "<mangled>.MTL_FC_INIT_<index>_<code>" global listed in !air.function_constants.
+  if (!R.constants.empty()) {
+    LLVMContext &C = M->getContext();
+    FunctionCallee isDefined = M->getOrInsertFunction("air.is_function_constant_defined",
+        FunctionType::get(Type::getInt1Ty(C), {Type::getInt8PtrTy(C, 2)}, false));
+    Function *Init = Function::Create(FunctionType::get(Type::getVoidTy(C), false), GlobalValue::InternalLinkage,
+                                      "_GLOBAL__sub_I_" + sys::path::filename(source), *M);
+    Init->setSection("air.static_init");
+    Init->addFnAttr(Attribute::NoUnwind);
+    IRBuilder<> IB(BasicBlock::Create(C, "", Init));
+    for (auto &FC : R.constants) {
+      GlobalVariable *G = M->getGlobalVariable(FC.var, true);
+      if (!G) continue;
+      Type *T = G->getValueType();
+      std::string code = FC.typeName == "bool" ? "b" : FC.typeName == "float" ? "f" : FC.typeName == "int" ? "i" :
+                         FC.typeName == "uint" ? "j" : FC.typeName == "half" ? "Dh" : FC.typeName == "short" ? "s" :
+                         FC.typeName == "ushort" ? "t" : FC.typeName == "char" ? "c" : FC.typeName == "uchar" ? "h" : FC.typeName;
+      std::string base = FC.var.rfind("_Z", 0) == 0 ? FC.var : "_Z" + std::to_string(FC.var.size()) + FC.var;
+      std::string initName = base + ".MTL_FC_INIT_" + std::to_string(FC.index) + "_" + code;
+      auto *I = new GlobalVariable(*M, T, true, GlobalValue::LinkOnceODRLinkage, UndefValue::get(T), initName, nullptr,
+                                   GlobalValue::NotThreadLocal, 2, true);
+      I->setVisibility(GlobalValue::HiddenVisibility);
+      I->setSection("air.fc_initializer");
+      I->setAlignment(G->getAlign() ? *G->getAlign() : Align(4));
+      auto *V = new GlobalVariable(*M, T, false, GlobalValue::InternalLinkage, UndefValue::get(T),
+                                   "_ZL" + std::to_string(FC.name.size()) + FC.name, nullptr, GlobalValue::NotThreadLocal, 2);
+      V->setAlignment(I->getAlign());
+      IB.CreateStore(IB.CreateLoad(T, I), V);
+      // is_function_constant_defined(x)
+      if (Function *Q = M->getFunction("xt.fc_defined")) {
+        std::vector<CallInst *> qs;
+        for (User *U : Q->users()) if (auto *CI = dyn_cast<CallInst>(U)) if (CI->getArgOperand(0)->stripPointerCasts() == G) qs.push_back(CI);
+        for (CallInst *CI : qs) {
+          IRBuilder<> B(CI);
+          Value *R = B.CreateCall(isDefined, {ConstantExpr::getBitCast(I, Type::getInt8PtrTy(C, 2))});
+          if (CI->getType() != R->getType()) R = B.CreateZExt(R, CI->getType());
+          CI->replaceAllUsesWith(R);
+          CI->eraseFromParent();
+        }
+      }
+      replacePointerAS(G, V);
+      if (G->use_empty()) G->eraseFromParent();
+      FC.var = initName; // for the metadata below
+    }
+    IB.CreateRetVoid();
+    appendToGlobalCtors(*M, Init, 65535);
   }
 
   runPasses(*M, true);
   dropForeignLifetimes(*M);
+  lowerAtomics(*M);
+  lowerFunctionConstantQueries(*M);
   lowerSretIntrinsics(*M);
   lowerConstSamplers(*M);
   lowerConversions(*M);
@@ -1522,7 +1795,7 @@ static int cmdCompile(int argc, char **argv) {
       std::string code = FC.typeName == "bool" ? "b" : FC.typeName == "float" ? "f" : FC.typeName == "int" ? "i" :
                          FC.typeName == "uint" ? "j" : FC.typeName == "half" ? "Dh" : FC.typeName == "short" ? "s" :
                          FC.typeName == "ushort" ? "t" : FC.typeName;
-      GlobalVariable *I = M->getGlobalVariable(FC.var + ".MTL_FC_INIT_" + std::to_string(FC.index) + "_" + code, true);
+      GlobalVariable *I = M->getGlobalVariable(FC.var, true);
       if (!I) continue;
       N->addOperand(MDNode::get(C, {ConstantAsMetadata::get(I), MDString::get(C, FC.typeName), MDString::get(C, FC.name),
                                     ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(C), FC.index))}));
@@ -1548,6 +1821,21 @@ static void tag(std::string &s, const char *name, const std::string &payload) {
   s.append(name, 4);
   put16(s, payload.size());
   s += payload;
+}
+
+
+// Metal data type codes used in metallib metadata (MetalLibraryArchive's table).
+static int metalDataType(const std::string &t) {
+  static const std::map<std::string, int> m = {
+      {"float", 0x03}, {"float2", 0x04}, {"float3", 0x05}, {"float4", 0x06}, {"half", 0x10}, {"half2", 0x11},
+      {"half3", 0x12}, {"half4", 0x13}, {"int", 0x1d}, {"int2", 0x1e}, {"int3", 0x1f}, {"int4", 0x20},
+      {"uint", 0x21}, {"uint2", 0x22}, {"uint3", 0x23}, {"uint4", 0x24}, {"short", 0x25}, {"short2", 0x26},
+      {"short3", 0x27}, {"short4", 0x28}, {"ushort", 0x29}, {"ushort2", 0x2a}, {"ushort3", 0x2b}, {"ushort4", 0x2c},
+      {"char", 0x2d}, {"char2", 0x2e}, {"char3", 0x2f}, {"char4", 0x30}, {"uchar", 0x31}, {"uchar2", 0x32},
+      {"uchar3", 0x33}, {"uchar4", 0x34}, {"bool", 0x35}, {"bool2", 0x36}, {"bool3", 0x37}, {"bool4", 0x38},
+      {"long", 0x51}, {"ulong", 0x55}};
+  auto it = m.find(t);
+  return it == m.end() ? 0 : it->second;
 }
 
 static int cmdLink(int argc, char **argv) {
@@ -1579,7 +1867,7 @@ static int cmdLink(int argc, char **argv) {
     N->clearOperands();
     for (auto *op : uniq) N->addOperand(op);
   }
-  struct Fn { std::string name; int type; std::string bc; };
+  struct Fn { std::string name; int type; std::string bc; std::string publicTags; };
   std::vector<Fn> fns;
   std::vector<std::pair<const char *, int>> lists = {{"air.vertex", 0}, {"air.fragment", 1}, {"air.kernel", 2}, {"air.visible", 4},
                                                      {"air.mesh", 7}, {"air.object", 8}};
@@ -1680,11 +1968,41 @@ static int cmdLink(int argc, char **argv) {
       if (keepOps.empty()) Clone->eraseNamedMetadata(N);
       else for (auto *op : keepOps) N->addOperand(op);
     }
+    // Function constants used by this function, for the CNST tag of the public metadata.
+    std::string cnst;
+    if (NamedMDNode *N = Clone->getNamedMetadata("air.function_constants")) {
+      std::vector<std::string> entries;
+      for (MDNode *op : N->operands()) {
+        auto *G = mdconst::dyn_extract_or_null<GlobalVariable>(op->getOperand(0));
+        if (!G) continue;
+        bool optional = false;
+        for (User *U : G->users()) {
+          Value *V = U;
+          if (auto *CE = dyn_cast<ConstantExpr>(U)) for (User *UU : CE->users()) V = UU;
+          if (auto *CI = dyn_cast<CallInst>(V))
+            if (CI->getCalledFunction() && CI->getCalledFunction()->getName() == "air.is_function_constant_defined") optional = true;
+        }
+        std::string type = cast<MDString>(op->getOperand(1))->getString().str();
+        std::string name = cast<MDString>(op->getOperand(2))->getString().str();
+        unsigned index = mdconst::extract<ConstantInt>(op->getOperand(3))->getZExtValue();
+        std::string e = name + std::string(1, '\0');
+        e += (char)metalDataType(type);
+        put16(e, index);
+        e += (char)(optional ? 0 : 1);
+        entries.push_back(e);
+      }
+      if (!entries.empty()) {
+        std::string payload;
+        put16(payload, entries.size());
+        for (auto &e : entries) payload += e;
+        tag(cnst, "CNST", payload);
+      }
+    }
     std::string bc;
     raw_string_ostream os(bc);
     WriteBitcodeToFile(*Clone, os);
     os.flush();
-    fns.push_back({F.getName().str(), entryKind[&F].second, bc});
+    fns.push_back({F.getName().str(), entryKind[&F].second, bc, cnst});
   }
 
   // Container
@@ -1708,7 +2026,7 @@ static int cmdLink(int argc, char **argv) {
     body += "ENDT";
     put32(flist, body.size() + 4);
     flist += body;
-    put32(pub, 8); pub += "ENDT";
+    put32(pub, 8 + f.publicTags.size()); pub += f.publicTags; pub += "ENDT";
     put32(priv, 8); priv += "ENDT";
     bcs += f.bc;
   }

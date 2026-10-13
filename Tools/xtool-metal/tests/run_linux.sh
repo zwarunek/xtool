@@ -8,7 +8,7 @@ mkdir -p out/ours
 fail=0
 for s in shaders/*.metal; do
   b=$(basename $s .metal)
-  if "$METAL" -c -target $TARGET -fmetal-math-mode=fast -o out/ours/$b.air $s 2> out/ours/$b.log &&
+  if "$METAL" -c -target $TARGET -fmetal-math-mode=fast ${XT_SDK:+-isysroot $XT_SDK} -o out/ours/$b.air $s 2> out/ours/$b.log &&
      "$METAL" -target $TARGET -o out/ours/$b.metallib out/ours/$b.air 2>> out/ours/$b.log; then
     echo "ok   $b"
   else

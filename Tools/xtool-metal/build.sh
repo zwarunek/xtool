@@ -15,8 +15,10 @@ if [ -z "$LLVM" ]; then
   fi
 fi
 mkdir -p out/bin out/include
+PATCHED=""
+if nm -C "$LLVM/lib/libclangSema.a" 2>/dev/null | grep -q "clang::XtMSL"; then PATCHED=-DXT_PATCHED_CLANG; fi
 CLANG_LIBS="-lclangCodeGen -lclangFrontend -lclangSerialization -lclangDriver -lclangParse -lclangSema -lclangAnalysis -lclangEdit -lclangAST -lclangASTMatchers -lclangLex -lclangBasic -lclangSupport"
-${CXX:-g++} -std=c++17 -O1 -fno-rtti -fno-exceptions -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS \
+${CXX:-g++} $PATCHED -std=c++17 -O1 -fno-rtti -fno-exceptions -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS \
   -D__STDC_LIMIT_MACROS -I"$LLVM/include" src/xtmetal.cpp -o out/bin/xtmetal -L"$LLVM/lib" \
   -Wl,--start-group $CLANG_LIBS $("$LLVM/bin/llvm-config" --libs all) -Wl,--end-group \
   $("$LLVM/bin/llvm-config" --system-libs) -lz -ltinfo

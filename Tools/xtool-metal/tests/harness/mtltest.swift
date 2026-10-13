@@ -55,6 +55,8 @@ struct Case: Codable {
     var threadgroup: [Int]?
     var constants: [String: Float]?
     var args: [Float]?       // visible: float arguments after the implicit position/color
+    var effect: String?      // visible: color (default) | layer | distortion
+    var noBounds: Bool?      // visible: do not pass the bounds float4 first
 }
 
 func fail(_ s: String) -> Never { FileHandle.standardError.write((s + "\n").data(using: .utf8)!); exit(1) }
@@ -248,10 +250,17 @@ func runVisible(_ path: String, _ c: Case) -> Data {
     let data = try! Data(contentsOf: URL(fileURLWithPath: path))
     let lib = ShaderLibrary(data: data)
     let w = c.width ?? 64, h = c.height ?? 64
-    var sargs: [Shader.Argument] = [.float4(0, 0, Float(w), Float(h))]
+    var sargs: [Shader.Argument] = c.noBounds == true ? [] : [.float4(0, 0, Float(w), Float(h))]
     for a in c.args ?? [] { sargs.append(.float(a)) }
     let shader = Shader(function: ShaderFunction(library: lib, name: c.function!), arguments: sargs)
-    let view = Rectangle().fill(Color(red: 0.2, green: 0.4, blue: 0.6)).frame(width: CGFloat(w), height: CGFloat(h)).colorEffect(shader)
+    let base = LinearGradient(colors: [.red, .yellow, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+        .frame(width: CGFloat(w), height: CGFloat(h))
+    let view: AnyView
+    switch c.effect ?? "color" {
+    case "layer": view = AnyView(base.layerEffect(shader, maxSampleOffset: CGSize(width: 16, height: 16)))
+    case "distortion": view = AnyView(base.distortionEffect(shader, maxSampleOffset: CGSize(width: 16, height: 16)))
+    default: view = AnyView(Rectangle().fill(Color(red: 0.2, green: 0.4, blue: 0.6)).frame(width: CGFloat(w), height: CGFloat(h)).colorEffect(shader))
+    }
     let r = ImageRenderer(content: view)
     r.scale = 1
     guard let cg = r.cgImage else { fail("ImageRenderer produced no image") }

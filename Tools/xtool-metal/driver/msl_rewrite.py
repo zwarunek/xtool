@@ -145,6 +145,21 @@ def rewrite(text, include_dir):
                         out.append(ADDRESS_SPACES[val])
                     i += 1
                     continue
+            if val in vector_names and not member:
+                # direct initialization: float3 k(1, 2, 3); -> float3 k = __xt_make<float3>(1, 2, 3);
+                j = next_sig(i + 1)
+                if j < n and toks[j][0] == 'id':
+                    k = next_sig(j + 1)
+                    if k < n and toks[k][1] == '(':
+                        end = match_paren(toks, k)
+                        if end and not looks_like_params(toks[k + 1:end]):
+                            out.append(val)
+                            out.extend(t[1] for t in toks[i + 1:k])
+                            out.append(f' = __xt_make<{val}>(')
+                            out.extend(t[1] for t in toks[k + 1:end])
+                            out.append(')')
+                            i = end + 1
+                            continue
             if val in vector_names:
                 j = next_sig(i + 1)
                 if j < n and toks[j][1] in ('(', '{'):
@@ -205,6 +220,39 @@ def rewrite(text, include_dir):
         out.append(val)
         i += 1
     return '#pragma OPENCL EXTENSION cl_khr_fp16 : enable\n' + ''.join(out)
+
+
+def match_paren(toks, k):
+    depth = 0
+    for j in range(k, len(toks)):
+        v = toks[j][1]
+        if v in ('(', '[', '{'):
+            depth += 1
+        elif v in (')', ']', '}'):
+            depth -= 1
+            if depth == 0:
+                return j
+    return None
+
+
+TYPE_WORDS = {'const', 'volatile', 'unsigned', 'signed', 'struct', 'thread', 'device', 'constant', 'threadgroup',
+              'void', 'bool', 'char', 'short', 'int', 'long', 'float', 'half', 'double', 'uint', 'uchar', 'ushort',
+              'ulong', 'typename', 'auto'}
+
+
+def looks_like_params(inner):
+    toks = [t for t in inner if t[0] != 'ws']
+    if not toks:
+        return True
+    for part in split_top(toks):
+        ids = [v for k, v in part if k == 'id']
+        if part and (part[0][1] in TYPE_WORDS or part[0][1] in VECTOR_TYPES):
+            return True
+        # two identifiers in a row (type name then parameter name) means a declaration
+        for a, b in zip(part, part[1:]):
+            if a[0] == 'id' and b[0] == 'id':
+                return True
+    return False
 
 
 def is_pointer_decl(toks, j):
