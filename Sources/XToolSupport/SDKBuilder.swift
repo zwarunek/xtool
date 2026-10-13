@@ -199,6 +199,10 @@ struct SDKBuilder {
         // SwiftBuild scans dependencies for explicit module builds, and the
         // scanner only adds cross-import overlays (e.g. _PhotosUI_SwiftUI,
         // which declares PhotosPicker) with -enable-cross-import-overlays.
+        // -use-ld=lld: Swift Build turns it into ALTERNATE_LINKER=lld for both linker drivers. With only the
+        // linker path (--ld-path), clang does not know the linker is lld and passes the legacy
+        // -ios_version_min instead of -platform_version, so every binary records the deployment target
+        // as its SDK version (LC_BUILD_VERSION sdk 15.0 instead of 26.5).
         try """
         {
             "schemaVersion": "1.0",
@@ -211,7 +215,8 @@ struct SDKBuilder {
             },
             "swiftCompiler": {
                 "extraCLIOptions": [
-                    "-Xfrontend", "-enable-cross-import-overlays"
+                    "-Xfrontend", "-enable-cross-import-overlays",
+                    "-use-ld=lld"
                 ]
             }
         }
