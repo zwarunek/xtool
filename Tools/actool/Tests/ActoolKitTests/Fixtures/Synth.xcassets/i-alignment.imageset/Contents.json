@@ -1,0 +1,19 @@
+{
+  "images": [
+    {
+      "idiom": "universal",
+      "filename": "al@2x.png",
+      "scale": "2x",
+      "alignment-insets": {
+        "top": 1,
+        "left": 2,
+        "bottom": 3,
+        "right": 4
+      }
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}

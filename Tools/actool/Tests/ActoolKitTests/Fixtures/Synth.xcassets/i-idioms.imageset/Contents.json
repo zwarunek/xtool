@@ -1,0 +1,28 @@
+{
+  "images": [
+    {
+      "idiom": "universal",
+      "filename": "u@2x.png",
+      "scale": "2x"
+    },
+    {
+      "idiom": "iphone",
+      "filename": "p@2x.png",
+      "scale": "2x"
+    },
+    {
+      "idiom": "ipad",
+      "filename": "a@2x.png",
+      "scale": "2x"
+    },
+    {
+      "idiom": "mac",
+      "filename": "m@2x.png",
+      "scale": "2x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}

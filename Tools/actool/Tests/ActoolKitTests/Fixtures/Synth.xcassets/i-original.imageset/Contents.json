@@ -1,0 +1,16 @@
+{
+  "images": [
+    {
+      "idiom": "universal",
+      "filename": "o@2x.png",
+      "scale": "2x"
+    }
+  ],
+  "properties": {
+    "template-rendering-intent": "original"
+  },
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}
