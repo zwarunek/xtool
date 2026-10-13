@@ -1,0 +1,1120 @@
+{
+  "sourceLanguage": "en",
+  "version": "1.0",
+  "strings": {
+    "SPEC_00": {
+      "extractionState": "manual",
+      "comment": "spec %@",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %@ end"
+          }
+        }
+      }
+    },
+    "SPEC_01": {
+      "extractionState": "manual",
+      "comment": "spec %d",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %d end"
+          }
+        }
+      }
+    },
+    "SPEC_02": {
+      "extractionState": "manual",
+      "comment": "spec %i",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %i end"
+          }
+        }
+      }
+    },
+    "SPEC_03": {
+      "extractionState": "manual",
+      "comment": "spec %ld",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %ld end"
+          }
+        }
+      }
+    },
+    "SPEC_04": {
+      "extractionState": "manual",
+      "comment": "spec %lld",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %lld end"
+          }
+        }
+      }
+    },
+    "SPEC_05": {
+      "extractionState": "manual",
+      "comment": "spec %u",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %u end"
+          }
+        }
+      }
+    },
+    "SPEC_06": {
+      "extractionState": "manual",
+      "comment": "spec %lu",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %lu end"
+          }
+        }
+      }
+    },
+    "SPEC_07": {
+      "extractionState": "manual",
+      "comment": "spec %llu",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %llu end"
+          }
+        }
+      }
+    },
+    "SPEC_08": {
+      "extractionState": "manual",
+      "comment": "spec %f",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %f end"
+          }
+        }
+      }
+    },
+    "SPEC_09": {
+      "extractionState": "manual",
+      "comment": "spec %lf",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %lf end"
+          }
+        }
+      }
+    },
+    "SPEC_10": {
+      "extractionState": "manual",
+      "comment": "spec %.2f",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %.2f end"
+          }
+        }
+      }
+    },
+    "SPEC_11": {
+      "extractionState": "manual",
+      "comment": "spec %e",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %e end"
+          }
+        }
+      }
+    },
+    "SPEC_12": {
+      "extractionState": "manual",
+      "comment": "spec %g",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %g end"
+          }
+        }
+      }
+    },
+    "SPEC_13": {
+      "extractionState": "manual",
+      "comment": "spec %x",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %x end"
+          }
+        }
+      }
+    },
+    "SPEC_14": {
+      "extractionState": "manual",
+      "comment": "spec %X",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %X end"
+          }
+        }
+      }
+    },
+    "SPEC_15": {
+      "extractionState": "manual",
+      "comment": "spec %o",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %o end"
+          }
+        }
+      }
+    },
+    "SPEC_16": {
+      "extractionState": "manual",
+      "comment": "spec %c",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %c end"
+          }
+        }
+      }
+    },
+    "SPEC_17": {
+      "extractionState": "manual",
+      "comment": "spec %C",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %C end"
+          }
+        }
+      }
+    },
+    "SPEC_18": {
+      "extractionState": "manual",
+      "comment": "spec %s",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %s end"
+          }
+        }
+      }
+    },
+    "SPEC_19": {
+      "extractionState": "manual",
+      "comment": "spec %S",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %S end"
+          }
+        }
+      }
+    },
+    "SPEC_20": {
+      "extractionState": "manual",
+      "comment": "spec %p",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %p end"
+          }
+        }
+      }
+    },
+    "SPEC_21": {
+      "extractionState": "manual",
+      "comment": "spec %hd",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %hd end"
+          }
+        }
+      }
+    },
+    "SPEC_22": {
+      "extractionState": "manual",
+      "comment": "spec %hhd",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %hhd end"
+          }
+        }
+      }
+    },
+    "SPEC_23": {
+      "extractionState": "manual",
+      "comment": "spec %zd",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %zd end"
+          }
+        }
+      }
+    },
+    "SPEC_24": {
+      "extractionState": "manual",
+      "comment": "spec %zu",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %zu end"
+          }
+        }
+      }
+    },
+    "SPEC_25": {
+      "extractionState": "manual",
+      "comment": "spec %qd",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %qd end"
+          }
+        }
+      }
+    },
+    "SPEC_26": {
+      "extractionState": "manual",
+      "comment": "spec %Lf",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %Lf end"
+          }
+        }
+      }
+    },
+    "SPEC_27": {
+      "extractionState": "manual",
+      "comment": "spec %5.1f",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %5.1f end"
+          }
+        }
+      }
+    },
+    "SPEC_28": {
+      "extractionState": "manual",
+      "comment": "spec %-3d",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %-3d end"
+          }
+        }
+      }
+    },
+    "SPEC_29": {
+      "extractionState": "manual",
+      "comment": "spec %+d",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %+d end"
+          }
+        }
+      }
+    },
+    "SPEC_30": {
+      "extractionState": "manual",
+      "comment": "spec %a",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %a end"
+          }
+        }
+      }
+    },
+    "SPEC_31": {
+      "extractionState": "manual",
+      "comment": "spec %1$@",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %1$@ end"
+          }
+        }
+      }
+    },
+    "SPEC_32": {
+      "extractionState": "manual",
+      "comment": "spec %2$@ %1$lld",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %2$@ %1$lld end"
+          }
+        }
+      }
+    },
+    "SPEC_33": {
+      "extractionState": "manual",
+      "comment": "spec %%",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %% end"
+          }
+        }
+      }
+    },
+    "SPEC_34": {
+      "extractionState": "manual",
+      "comment": "spec %li",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %li end"
+          }
+        }
+      }
+    },
+    "SPEC_35": {
+      "extractionState": "manual",
+      "comment": "spec %jd",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %jd end"
+          }
+        }
+      }
+    },
+    "SPEC_36": {
+      "extractionState": "manual",
+      "comment": "spec %td",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "value %td end"
+          }
+        }
+      }
+    },
+    "simple": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "UPPER_SNAKE": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "mixed_Case_key": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "with space key": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "dots.in.key": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "dash-key": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "123leading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "class": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "self": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "Type": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "default": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "__double": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "trailing_": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "a": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "A": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "ALLCAPS": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "camelCase": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "PascalCase": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "x2y": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "key with émoji 😀": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "URL_HANDLER": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "myURLHandler": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "HTTPStatus": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "ID": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "two__underscores": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "k$dollar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "has\"quote": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "new\nline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "tab\tkey": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "back\\slash": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "dup_name": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1"
+          }
+        }
+      }
+    },
+    "DUP_NAME": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2"
+          }
+        }
+      }
+    },
+    "dupName": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3"
+          }
+        }
+      }
+    },
+    "comment_multi": {
+      "extractionState": "manual",
+      "comment": "Line one\nLine two with */ and “quotes” and \\(interp)",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "comment_empty": {
+      "extractionState": "manual",
+      "comment": "",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "v"
+          }
+        }
+      }
+    },
+    "no_en_loc": {
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nur %@"
+          }
+        }
+      }
+    },
+    "no_loc_at_all": {
+      "extractionState": "manual"
+    },
+    "new_state": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "new %d"
+          }
+        }
+      }
+    },
+    "stale_extraction": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "x %@"
+          }
+        }
+      }
+    },
+    "auto_extracted %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "auto %@"
+          }
+        }
+      }
+    },
+    "ext_with_value": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ewv %@"
+          }
+        }
+      }
+    },
+    "migrated": {
+      "extractionState": "migrated",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "mig %@"
+          }
+        }
+      }
+    },
+    "plural_manual": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld thing"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld things"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "plural_two_args": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ has %lld"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ have %lld"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "plural_one_noarg": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "one"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d many"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "device_manual": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "device": {
+              "iphone": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "phone %@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "other %@"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "device_diff_args": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "device": {
+              "iphone": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "phone %@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "other"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "subs_manual %#@n@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ has %#@n@"
+          },
+          "substitutions": {
+            "n": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg x"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg xs"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "percent_literal": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "100%% sure %@"
+          }
+        }
+      }
+    },
+    "shouldnt_translate": {
+      "extractionState": "manual",
+      "shouldTranslate": false,
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "brand %@"
+          }
+        }
+      }
+    },
+    "unordered_pos": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ then %1$d"
+          }
+        }
+      }
+    },
+    "gap_pos": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%3$@ only"
+          }
+        }
+      }
+    },
+    "repeat_pos": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ and %1$@"
+          }
+        }
+      }
+    }
+  }
+}

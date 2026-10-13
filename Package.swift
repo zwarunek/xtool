@@ -46,6 +46,10 @@ let package = Package(
             name: "xtool",
             targets: ["xtool"]
         ),
+        .executable(
+            name: "xcstringstool",
+            targets: ["xcstringstool"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/xtool-org/xtool-core", .upToNextMinor(from: "1.5.0")),
@@ -201,12 +205,30 @@ let package = Package(
             ],
             swiftSettings: swiftSettings,
         ),
+        // Linux replacement for Xcode's xcstringstool (String Catalog compiler)
+        .target(
+            name: "StringCatalogCompiler",
+            swiftSettings: swiftSettings,
+        ),
+        .executableTarget(
+            name: "xcstringstool",
+            dependencies: ["StringCatalogCompiler"],
+            path: "Sources/XCStringsToolCLI",
+            swiftSettings: swiftSettings,
+        ),
+        .testTarget(
+            name: "StringCatalogCompilerTests",
+            dependencies: ["StringCatalogCompiler"],
+            resources: [.copy("Fixtures")],
+            swiftSettings: swiftSettings,
+        ),
         .executableTarget(
             name: "xtool",
             dependencies: [
                 "SwiftyMobileDevice",
                 "XKit",
                 "XToolSupport",
+                "StringCatalogCompiler",
             ],
             cSettings: cSettings,
             swiftSettings: swiftSettings,

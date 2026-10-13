@@ -1,0 +1,250 @@
+{
+  "sourceLanguage": "en",
+  "version": "1.0",
+  "strings": {
+    "plural_subs_in_plural %lld %@": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%2$@ has %1$lld follower and %#@x@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%2$@ has %1$lld followers"
+                }
+              }
+            }
+          },
+          "substitutions": {
+            "x": {
+              "argNum": 3,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg post"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg posts"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "device_plural %lld": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "device": {
+              "iphone": {
+                "variations": {
+                  "plural": {
+                    "one": {
+                      "stringUnit": {
+                        "state": "translated",
+                        "value": "%lld phone"
+                      }
+                    },
+                    "other": {
+                      "stringUnit": {
+                        "state": "translated",
+                        "value": "%lld phones"
+                      }
+                    }
+                  }
+                }
+              },
+              "other": {
+                "variations": {
+                  "plural": {
+                    "one": {
+                      "stringUnit": {
+                        "state": "translated",
+                        "value": "%lld device"
+                      }
+                    },
+                    "other": {
+                      "stringUnit": {
+                        "state": "translated",
+                        "value": "%lld devices"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_mixed_types": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d item"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld items"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_width": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%5lld w"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%-5lld ws"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "empty_plural": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": ""
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": ""
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_no_spec": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "one thing"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "many things"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_only_obj": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ thing"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ things"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "subs_device %#@a@": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "device": {
+              "iphone": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "phone %#@a@"
+                },
+                "substitutions": {
+                  "a": {
+                    "argNum": 1,
+                    "formatSpecifier": "lld",
+                    "variations": {
+                      "plural": {
+                        "one": {
+                          "stringUnit": {
+                            "state": "translated",
+                            "value": "%arg x"
+                          }
+                        },
+                        "other": {
+                          "stringUnit": {
+                            "state": "translated",
+                            "value": "%arg xs"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "other %lld"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -597,6 +597,8 @@ struct SDKBuilder {
             let bin = platformDir.appendingPathComponent("Developer/usr/bin")
             let pluginServer = bin.appendingPathComponent("swift-plugin-server")
             try? FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+
+            try installXcodeToolShims(in: bin)
             try? FileManager.default.removeItem(at: pluginServer)
             try FileManager.default.createSymbolicLink(
                 atPath: pluginServer.path,
@@ -669,6 +671,28 @@ struct SDKBuilder {
         try await Task {
             try await _extractXIP(inputPath: inputPath, outDir: outDir)
         }.value
+    }
+
+    /// Xcode tools that xtool reimplements, run through the xtool binary.
+    static let xcodeToolShims = ["xcstringstool"]
+
+    /// SwiftBuild resolves Xcode tools from the toolchain and platform `bin` directories (not PATH),
+    /// so put shims for the tools xtool reimplements into the platform's `Developer/usr/bin`.
+    private func installXcodeToolShims(in bin: URL) throws {
+        // Prefer the AppImage path: the binary inside a mounted AppImage disappears after xtool exits.
+        let xtool = ProcessInfo.processInfo.environment["APPIMAGE"]
+            ?? Bundle.main.executableURL?.resolvingSymlinksInPath().path
+            ?? CommandLine.arguments[0]
+        for tool in Self.xcodeToolShims {
+            let shim = bin.appendingPathComponent(tool)
+            try? FileManager.default.removeItem(at: shim)
+            try Data("""
+            #!/bin/sh
+            XTOOL_MULTICALL=\(tool) exec '\(xtool.replacingOccurrences(of: "'", with: "'\\''"))' "$@"
+
+            """.utf8).write(to: shim)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: shim.path)
+        }
     }
 
     private func patchPlatformManifest(path: URL) throws {

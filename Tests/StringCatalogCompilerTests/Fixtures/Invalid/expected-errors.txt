@@ -1,0 +1,7 @@
+error: Cannot infer format specifier for string group because more than one numerical specifier was found (en: p_mixed_types)
+error: Cannot infer format specifier for string group because more than one numerical specifier was found (en: p_width)
+error: Cannot reference substitution 'x' from here because it is not a plain string (en: plural_subs_in_plural %lld %@|==|plural.one)
+error: Fallback value cannot be further varied (en: device_plural %lld|==|device.other)
+error: Plural variation requires referencing the number in the string. To maintain grammatical correctness for strings that do not reference the number of items, use separate top-level strings for one and greater than one. (en: p_no_spec)
+error: Plural variation requires referencing the number in the string. To maintain grammatical correctness for strings that do not reference the number of items, use separate top-level strings for one and greater than one. (en: p_only_obj)
+error: Referencing undefined substitution 'a' (en: subs_device %#@a@|==|device.iphone)

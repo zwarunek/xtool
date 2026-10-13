@@ -71,3 +71,5 @@ included:
   - macOS/XToolMac
 excluded:
   - Sources/DeveloperAPI/Generated
+  # Xcode's generate-symbols output, compared byte for byte
+  - Tests/StringCatalogCompilerTests/Fixtures
