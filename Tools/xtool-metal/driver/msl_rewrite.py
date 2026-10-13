@@ -365,8 +365,8 @@ def rewrite_attrs(body, out):
                 s = ''.join(v for _, v in arg).strip()
                 if not s:
                     continue
-                if name == 'function_constant' and s in PREDICATE_NAMES:
-                    s = '"' + s + '"'
+                if name == 'function_constant' and s.lstrip(':') in PREDICATE_NAMES:
+                    s = '"' + s.lstrip(':') + '"'
                 if name in QUOTE_ARGS or (name == 'host_name' and not s.startswith('"')):
                     if not s.startswith('"'):
                         s = '"' + s + '"'

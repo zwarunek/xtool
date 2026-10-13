@@ -1562,6 +1562,40 @@ static void replacePointerAS(Value *Old, Value *New) {
   }
 }
 
+
+// clang emits same-type bitcasts between address spaces for dynamic initializers of constant-address-space
+// globals; make them addrspacecasts, and run C++ dynamic initializers as AIR static initializers.
+static void fixGlobalInitializers(Module &M) {
+  for (Function &F : M)
+    for (Instruction &I : instructions(F))
+      for (Use &U : I.operands()) {
+        auto *CE = dyn_cast<ConstantExpr>(U.get());
+        if (!CE || CE->getOpcode() != Instruction::BitCast) continue;
+        Type *From = CE->getOperand(0)->getType(), *To = CE->getType();
+        if (From->isPointerTy() && To->isPointerTy() && From->getPointerAddressSpace() != To->getPointerAddressSpace())
+          U.set(ConstantExpr::getPointerBitCastOrAddrSpaceCast(CE->getOperand(0), To));
+      }
+  for (Function &F : M)
+    for (Instruction &I : instructions(F))
+      if (auto *CB = dyn_cast<CallBase>(&I)) {
+        FunctionType *FT = CB->getFunctionType();
+        for (unsigned a = 0; a < CB->arg_size() && a < FT->getNumParams(); ++a) {
+          Value *V = CB->getArgOperand(a);
+          Type *PT = FT->getParamType(a);
+          if (V->getType() != PT && V->getType()->isPointerTy() && PT->isPointerTy()) {
+            IRBuilder<> B(CB);
+            CB->setArgOperand(a, B.CreatePointerBitCastOrAddrSpaceCast(V, PT));
+          }
+        }
+      }
+  if (GlobalVariable *GC = M.getGlobalVariable("llvm.global_ctors"))
+    if (auto *CA = dyn_cast<ConstantArray>(GC->getInitializer()))
+      for (Value *E : CA->operands())
+        if (auto *CS = dyn_cast<ConstantStruct>(E))
+          if (auto *F = dyn_cast<Function>(CS->getOperand(1)->stripPointerCasts()))
+            if (!F->hasSection()) F->setSection("air.static_init");
+}
+
 static void runPasses(Module &M, bool inlineAll) {
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
@@ -1710,7 +1744,7 @@ static int cmdCompile(int argc, char **argv) {
   if (input.empty() || output.empty()) die("compile: need input and -o");
   if (source.empty()) source = input;
 
-  std::vector<std::string> args = {"-triple", "spir64-unknown-unknown", "-emit-llvm-only", "-O2", "-disable-llvm-passes",
+  std::vector<std::string> args = {"-triple", "spir64-unknown-unknown", "-emit-llvm-only", "-O2", "-disable-llvm-passes", "-disable-llvm-verifier",
                                    "-x", "clcpp", "-cl-std=clc++2021", "-cl-ext=+cl_khr_fp16,+cl_khr_fp64,+__opencl_c_fp64,+__opencl_c_generic_address_space,+__opencl_c_program_scope_global_variables,+__opencl_c_images,+__opencl_c_read_write_images,+__opencl_c_atomic_order_seq_cst,+__opencl_c_atomic_scope_device",
                                    "-cl-single-precision-constant", "-cl-fp32-correctly-rounded-divide-sqrt", "-no-opaque-pointers", "-fno-builtin", "-ffreestanding",
                                    "-fno-signed-char", "-Wno-user-defined-literals", "-Wno-unused-value", "-Wno-duplicate-decl-specifier",
@@ -1771,6 +1805,7 @@ static int cmdCompile(int argc, char **argv) {
 
   M->setDataLayout(kAirDataLayout);
   stripAnnotations(*M);
+  fixGlobalInitializers(*M);
   lowerSparseIntrinsics(*M);
   // Everything but entry points gets inlined; MSL has no recursion or function pointers.
   for (Function &F : *M) {

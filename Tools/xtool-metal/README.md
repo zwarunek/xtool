@@ -54,12 +54,12 @@ libraries through `tests/harness/mtltest.swift` (stitchable functions go through
 
 ## Status
 
-Supported: vertex, fragment, kernel and visible/stitchable functions; buffers (pointers and references,
-struct type info), stage_in, builtin inputs and outputs, interpolation qualifiers, textures (1D, 2D, 3D,
-cube, arrays, multisample, depth, texture buffers: sample/read/write/gather/queries), samplers (arguments
-and constexpr), threadgroup memory, barriers, 32-bit atomics, math/geometric/relational/integer
-functions in fast and precise modes, matrices, packed vectors.
+Public corpus (Inferno, MetalPetal, Apple sample code mirror, iShader, metallurgy, SwiftUIShaders,
+MetalSprockets; `tests/corpus/fetch.sh`): 229 of 244 files compile and link (Apple's compiler: 238; two
+of our failures are missing headers that Apple's compiler also cannot find). For every file both
+compilers build, the function list matches Apple's and every compute pipeline builds on the GPU.
+Compile + link takes about 0.2 s per file with the precompiled standard library.
 
-Not yet: argument buffers with nested resources at runtime, function constants with dynamic
-initializers, mesh/object functions, ray tracing, imageblocks, `bool` vectors from comparisons
-(comparisons produce integer masks), and debug info.
+Not yet: ray tracing (intersectors, acceleration structures, intersection functions), imageblocks and
+pixel-format types, mesh/object functions, post-tessellation vertex functions, the rest of the indirect
+command buffer API, and debug info.

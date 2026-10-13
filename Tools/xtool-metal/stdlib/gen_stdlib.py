@@ -847,8 +847,8 @@ c2 = air('air.map_physical_to_screen_coordinates.v2f32.p2i8.i32', 'float2', ['fl
 w(f'''struct rasterization_rate_map_decoder {{
   const __attribute__((address_space(2))) char *__p;
   rasterization_rate_map_decoder(const __attribute__((address_space(2))) rasterization_rate_map_data &d) : __p((const __attribute__((address_space(2))) char *)&d) {{}}
-  float2 map_screen_to_physical_coordinates(float2 c, uint layer = 0) const {{ return {c1}(c, __p, layer); }}
-  float2 map_physical_to_screen_coordinates(float2 c, uint layer = 0) const {{ return {c2}(c, __p, layer); }}
+  template <class V> V map_screen_to_physical_coordinates(V c, uint layer = 0) const {{ return __xt_make<V>({c1}(__xt_make<float2>(c), __p, layer)); }}
+  template <class V> V map_physical_to_screen_coordinates(V c, uint layer = 0) const {{ return __xt_make<V>({c2}(__xt_make<float2>(c), __p, layer)); }}
 }};''')
 w('enum class primitive_type { point = 0, line = 1, line_strip = 2, triangle = 3, triangle_strip = 4 };')
 CB = '__global _command_buffer_t *'
@@ -856,6 +856,8 @@ c_vb = air('air.set_vertex_buffer_render_command.p1i8', 'void', [CB, 'uint', '__
 c_fb = air('air.set_fragment_buffer_render_command.p1i8', 'void', [CB, 'uint', '__global void *', 'long', 'uint'], pure=False)
 c_dp = air('air.draw_primitives_render_command', 'void', [CB, 'uint', 'uint', 'uint', 'uint', 'uint', 'uint'], pure=False)
 c_rs = air('air.reset_render_command', 'void', [CB, 'uint'], pure=False)
+c_vb2 = air('air.set_vertex_buffer_render_command.p2i8', 'void', [CB, 'uint', 'const __attribute__((address_space(2))) void *', 'long', 'uint'], pure=False)
+c_fb2 = air('air.set_fragment_buffer_render_command.p2i8', 'void', [CB, 'uint', 'const __attribute__((address_space(2))) void *', 'long', 'uint'], pure=False)
 w(f'''struct [[clang::annotate("xt.resource:command_buffer:_command_buffer_t:1")]] command_buffer {{ {CB}__c; uint size() const; }};
 struct render_command {{
   {CB}__c; uint __i;
@@ -864,6 +866,8 @@ struct render_command {{
   template <class T> void set_vertex_buffer(const __global T *b, uint index) {{ {c_vb}(__c, __i, (__global void *)b, -1, index); }}
   template <class T> void set_fragment_buffer(__global T *b, uint index) {{ {c_fb}(__c, __i, (__global void *)b, -1, index); }}
   template <class T> void set_fragment_buffer(const __global T *b, uint index) {{ {c_fb}(__c, __i, (__global void *)b, -1, index); }}
+  template <class T> void set_vertex_buffer(const __attribute__((address_space(2))) T *b, uint index) {{ {c_vb2}(__c, __i, (const __attribute__((address_space(2))) void *)b, -1, index); }}
+  template <class T> void set_fragment_buffer(const __attribute__((address_space(2))) T *b, uint index) {{ {c_fb2}(__c, __i, (const __attribute__((address_space(2))) void *)b, -1, index); }}
   void draw_primitives(primitive_type t, uint vstart, uint vcount, uint icount, uint ibase) {{ {c_dp}(__c, __i, (uint)t, vstart, vcount, icount, ibase); }}
   void reset() {{ {c_rs}(__c, __i); }}
 }};''')
