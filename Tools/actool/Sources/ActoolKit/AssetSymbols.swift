@@ -35,9 +35,12 @@ public struct AssetSymbolGenerator {
                 let leaf = asset.name.split(separator: "/").last.map(String.init) ?? asset.name
                 let rel = "./" + asset.directory.path.dropFirst(catalog.url.path.count + 1)
                 let s = Symbol(name: asset.name, path: asset.namespace, leaf: leaf, swift: Self.swiftIdentifier(leaf), catalog: catalog.url, relativePath: String(rel))
+                // Sets without any content get no symbol, as with actool.
                 switch asset.kind {
-                case .colorSet: colors.append(s)
-                case .imageSet: images.append(s)
+                case .colorSet where (asset.contents["colors"]?.array ?? []).contains(where: { $0["color"] != nil }):
+                    colors.append(s)
+                case .imageSet where (asset.contents["images"]?.array ?? []).contains(where: { $0["filename"] != nil }):
+                    images.append(s)
                 case .symbolSet: symbols.append(s)
                 default: break
                 }
@@ -297,8 +300,9 @@ public struct AssetSymbolGenerator {
         if !colors.isEmpty {
             out += "/// The resource bundle ID.\nstatic NSString * const ACBundleID AC_SWIFT_PRIVATE = @\"\(options.bundleIdentifier)\";\n\n"
         }
+        // Sorted by the name without its namespace, in byte order.
         func sorted(_ s: [Symbol]) -> [Symbol] {
-            s.sorted { $0.name.lowercased() == $1.name.lowercased() ? $0.name < $1.name : $0.name.lowercased() < $1.name.lowercased() }
+            s.sorted { Array($0.leaf.utf8).lexicographicallyPrecedes(Array($1.leaf.utf8)) || ($0.leaf == $1.leaf && $0.name < $1.name) }
         }
         for s in sorted(colors) {
             out += "/// The \"\(s.name)\" asset catalog color resource.\nstatic NSString * const ACColorName\(Self.objcIdentifier(s.name)) AC_SWIFT_PRIVATE = @\"\(s.name)\";\n\n"
