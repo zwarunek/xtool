@@ -46,6 +46,15 @@ let package = Package(
             name: "xtool",
             targets: ["xtool"]
         ),
+        .library(
+            name: "NibKit",
+            targets: ["NibKit"]
+        ),
+        // A Linux stand-in for Xcode's ibtool that SwiftBuild runs to compile .xib files.
+        .executable(
+            name: "xtool-ibtool",
+            targets: ["XToolIBTool"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/xtool-org/xtool-core", .upToNextMinor(from: "1.5.0")),
@@ -209,6 +218,22 @@ let package = Package(
                 "XToolSupport",
             ],
             cSettings: cSettings,
+            swiftSettings: swiftSettings,
+        ),
+        .target(
+            name: "NibKit",
+            swiftSettings: swiftSettings,
+        ),
+        .executableTarget(
+            name: "XToolIBTool",
+            dependencies: ["NibKit"],
+            swiftSettings: swiftSettings,
+        ),
+        .testTarget(
+            name: "NibKitTests",
+            dependencies: ["NibKit"],
+            // Read through #filePath: a resource bundle accessor fails to link in Linux test bundles.
+            exclude: ["Fixtures"],
             swiftSettings: swiftSettings,
         ),
     ]

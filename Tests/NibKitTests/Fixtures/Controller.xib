@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.iPad.XIB" version="3.0" toolsVersion="21701" targetRuntime="iOS.CocoaTouch.iPad" propertyAccessControl="none" useAutolayout="YES" useSafeAreas="YES" colorMatched="YES">
+    <device id="ipad10_9rounded" orientation="portrait" layout="fullscreen" appearance="light"/>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="21678"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="System colors in document resources" minToolsVersion="11.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner" customClass="ListViewController">
+            <connections>
+                <outlet property="searchBar" destination="sch-b0-001" id="out-c0-001"/>
+                <outlet property="tableView" destination="tbl-v0-001" id="out-c0-002"/>
+                <outlet property="view" destination="vew-r0-001" id="out-c0-003"/>
+            </connections>
+        </placeholder>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <view contentMode="scaleToFill" id="vew-r0-001">
+            <rect key="frame" x="0.0" y="0.0" width="500" height="700"/>
+            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+            <subviews>
+                <tableView clipsSubviews="YES" contentMode="scaleToFill" alwaysBounceVertical="YES" keyboardDismissMode="onDrag" style="grouped" separatorStyle="default" rowHeight="56" estimatedRowHeight="56" sectionHeaderHeight="18" sectionFooterHeight="18" translatesAutoresizingMaskIntoConstraints="NO" id="tbl-v0-001">
+                    <rect key="frame" x="0.0" y="80" width="500" height="620"/>
+                    <color key="backgroundColor" systemColor="systemGroupedBackgroundColor"/>
+                    <connections>
+                        <outlet property="dataSource" destination="-1" id="out-c0-004"/>
+                        <outlet property="delegate" destination="-1" id="out-c0-005"/>
+                    </connections>
+                </tableView>
+                <searchBar contentMode="redraw" placeholder="Search" translucent="NO" translatesAutoresizingMaskIntoConstraints="NO" id="sch-b0-001">
+                    <rect key="frame" x="0.0" y="24" width="500" height="56"/>
+                    <textInputTraits key="textInputTraits" autocapitalizationType="none" autocorrectionType="no" spellCheckingType="no" returnKeyType="search"/>
+                    <connections>
+                        <outlet property="delegate" destination="-1" id="out-c0-006"/>
+                    </connections>
+                </searchBar>
+            </subviews>
+            <viewLayoutGuide key="safeArea" id="saf-e0-001"/>
+            <color key="backgroundColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+            <constraints>
+                <constraint firstItem="sch-b0-001" firstAttribute="top" secondItem="saf-e0-001" secondAttribute="top" id="k01-aa-001"/>
+                <constraint firstItem="sch-b0-001" firstAttribute="leading" secondItem="saf-e0-001" secondAttribute="leading" id="k02-aa-001"/>
+                <constraint firstItem="saf-e0-001" firstAttribute="trailing" secondItem="sch-b0-001" secondAttribute="trailing" id="k03-aa-001"/>
+                <constraint firstItem="tbl-v0-001" firstAttribute="top" secondItem="sch-b0-001" secondAttribute="bottom" id="k04-aa-001"/>
+                <constraint firstItem="tbl-v0-001" firstAttribute="leading" secondItem="vew-r0-001" secondAttribute="leading" id="k05-aa-001"/>
+                <constraint firstAttribute="trailing" secondItem="tbl-v0-001" secondAttribute="trailing" id="k06-aa-001"/>
+                <constraint firstAttribute="bottom" secondItem="tbl-v0-001" secondAttribute="bottom" id="k07-aa-001"/>
+            </constraints>
+            <freeformSimulatedSizeMetrics key="simulatedDestinationMetrics"/>
+            <point key="canvasLocation" x="0.0" y="0.0"/>
+        </view>
+    </objects>
+    <resources>
+        <systemColor name="systemGroupedBackgroundColor">
+            <color red="0.94901960784313721" green="0.94901960784313721" blue="0.96862745098039216" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+        </systemColor>
+    </resources>
+</document>

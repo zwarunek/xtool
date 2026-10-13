@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="21701" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES">
+    <device id="retina5_9" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="21678"/>
+        <capability name="Safe area layout guides" minToolsVersion="9.0"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner"/>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <view contentMode="scaleToFill" id="pnl-v0-001" customClass="PanelView" customModuleProvider="target">
+            <rect key="frame" x="0.0" y="0.0" width="375" height="812"/>
+            <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+            <subviews>
+                <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Headline" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" minimumScaleFactor="0.5" translatesAutoresizingMaskIntoConstraints="NO" id="hdl-l0-001">
+                    <rect key="frame" x="20" y="60" width="335" height="24"/>
+                    <fontDescription key="fontDescription" type="boldSystem" pointSize="20"/>
+                    <color key="textColor" white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    <nil key="highlightedColor"/>
+                    <color key="shadowColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    <size key="shadowOffset" width="0.0" height="1"/>
+                </label>
+                <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Body" lineBreakMode="tailTruncation" numberOfLines="0" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="bdy-l0-001">
+                    <rect key="frame" x="20" y="96" width="335" height="17"/>
+                    <fontDescription key="fontDescription" name="HelveticaNeue" family="Helvetica Neue" pointSize="14"/>
+                    <color key="textColor" systemColor="darkTextColor"/>
+                    <nil key="highlightedColor"/>
+                </label>
+                <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="don-b0-001">
+                    <rect key="frame" x="20" y="718" width="80" height="44"/>
+                    <constraints>
+                        <constraint firstAttribute="height" constant="44" id="h01-aa-001"/>
+                        <constraint firstAttribute="width" relation="greaterThanOrEqual" constant="80" id="w01-aa-001"/>
+                    </constraints>
+                    <fontDescription key="fontDescription" style="UICTFontTextStyleHeadline"/>
+                    <state key="normal" title="Done">
+                        <color key="titleColor" red="1" green="1" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                    </state>
+                    <connections>
+                        <action selector="didTapDone:" destination="pnl-v0-001" eventType="touchUpInside" id="act-p0-001"/>
+                    </connections>
+                </button>
+                <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="clo-b0-001">
+                    <rect key="frame" x="315" y="718" width="44" height="44"/>
+                    <state key="normal" title="X" backgroundImage="close"/>
+                    <connections>
+                        <action selector="didTapClose:" destination="pnl-v0-001" eventType="touchUpInside" id="act-p0-002"/>
+                    </connections>
+                </button>
+                <view tag="1" contentMode="scaleToFill" horizontalHuggingPriority="1000" verticalHuggingPriority="1000" translatesAutoresizingMaskIntoConstraints="NO" id="sw1-v0-001" customClass="Swatch">
+                    <rect key="frame" x="120" y="718" width="44" height="44"/>
+                    <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    <userDefinedRuntimeAttributes>
+                        <userDefinedRuntimeAttribute type="color" keyPath="fillColor">
+                            <color key="value" red="0.90000000000000002" green="0.10000000000000001" blue="0.20000000000000001" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        </userDefinedRuntimeAttribute>
+                        <userDefinedRuntimeAttribute type="boolean" keyPath="selected" value="YES"/>
+                        <userDefinedRuntimeAttribute type="string" keyPath="iconName" value="dot"/>
+                        <userDefinedRuntimeAttribute type="number" keyPath="cornerRadius">
+                            <integer key="value" value="22"/>
+                        </userDefinedRuntimeAttribute>
+                    </userDefinedRuntimeAttributes>
+                    <connections>
+                        <action selector="didTapSwatch:" destination="pnl-v0-001" eventType="valueChanged" id="act-p0-003"/>
+                    </connections>
+                </view>
+                <view tag="2" contentMode="scaleToFill" horizontalHuggingPriority="1000" verticalHuggingPriority="1000" translatesAutoresizingMaskIntoConstraints="NO" id="sw2-v0-001" customClass="Swatch">
+                    <rect key="frame" x="172" y="718" width="44" height="44"/>
+                    <color key="backgroundColor" white="0.0" alpha="0.0" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                    <userDefinedRuntimeAttributes>
+                        <userDefinedRuntimeAttribute type="color" keyPath="fillColor">
+                            <color key="value" red="0.10000000000000001" green="0.5" blue="0.90000000000000002" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        </userDefinedRuntimeAttribute>
+                    </userDefinedRuntimeAttributes>
+                    <connections>
+                        <action selector="didTapSwatch:" destination="pnl-v0-001" eventType="valueChanged" id="act-p0-004"/>
+                    </connections>
+                </view>
+            </subviews>
+            <viewLayoutGuide key="safeArea" id="saf-p0-001"/>
+            <color key="backgroundColor" red="0.12" green="0.12" blue="0.14000000000000001" alpha="0.94999999999999996" colorSpace="custom" customColorSpace="sRGB"/>
+            <gestureRecognizers/>
+            <constraints>
+                <constraint firstItem="hdl-l0-001" firstAttribute="top" secondItem="saf-p0-001" secondAttribute="top" constant="16" id="p01-aa-001"/>
+                <constraint firstItem="hdl-l0-001" firstAttribute="leading" secondItem="pnl-v0-001" secondAttribute="leadingMargin" constant="4" id="p02-aa-001"/>
+                <constraint firstAttribute="trailingMargin" secondItem="hdl-l0-001" secondAttribute="trailing" constant="4" id="p03-aa-001"/>
+                <constraint firstItem="bdy-l0-001" firstAttribute="top" secondItem="hdl-l0-001" secondAttribute="bottom" constant="12" id="p04-aa-001"/>
+                <constraint firstItem="bdy-l0-001" firstAttribute="leading" secondItem="hdl-l0-001" secondAttribute="leading" id="p05-aa-001"/>
+                <constraint firstItem="bdy-l0-001" firstAttribute="width" secondItem="hdl-l0-001" secondAttribute="width" multiplier="1:2" id="p06-aa-001"/>
+                <constraint firstItem="saf-p0-001" firstAttribute="bottom" secondItem="don-b0-001" secondAttribute="bottom" constant="16" id="p07-aa-001"/>
+                <constraint firstItem="don-b0-001" firstAttribute="leading" secondItem="saf-p0-001" secondAttribute="leading" constant="20" id="p08-aa-001"/>
+                <constraint firstItem="sw1-v0-001" firstAttribute="leading" secondItem="don-b0-001" secondAttribute="trailing" constant="20" symbolic="YES" id="p09-aa-001"/>
+                <constraint firstItem="sw2-v0-001" firstAttribute="leading" secondItem="sw1-v0-001" secondAttribute="trailing" constant="8" id="p10-aa-001"/>
+                <constraint firstItem="sw1-v0-001" firstAttribute="centerY" secondItem="don-b0-001" secondAttribute="centerY" id="p11-aa-001"/>
+                <constraint firstItem="sw2-v0-001" firstAttribute="centerY" secondItem="sw1-v0-001" secondAttribute="centerY" id="p12-aa-001"/>
+                <constraint firstItem="saf-p0-001" firstAttribute="trailing" secondItem="clo-b0-001" secondAttribute="trailing" constant="16" id="p13-aa-001"/>
+                <constraint firstItem="clo-b0-001" firstAttribute="centerY" secondItem="don-b0-001" secondAttribute="centerY" id="p14-aa-001"/>
+                <constraint firstItem="clo-b0-001" firstAttribute="leading" relation="greaterThanOrEqual" secondItem="sw2-v0-001" secondAttribute="trailing" priority="999" constant="8" id="p15-aa-001"/>
+            </constraints>
+            <connections>
+                <outlet property="body" destination="bdy-l0-001" id="out-p0-001"/>
+                <outlet property="doneButton" destination="don-b0-001" id="out-p0-002"/>
+                <outlet property="headline" destination="hdl-l0-001" id="out-p0-003"/>
+                <outlet property="spacing" destination="p10-aa-001" id="out-p0-004"/>
+                <outlet property="tapRecognizer" destination="tap-g0-001" id="out-p0-005"/>
+                <outletCollection property="swatches" destination="sw1-v0-001" id="col-p0-001"/>
+                <outletCollection property="swatches" destination="sw2-v0-001" id="col-p0-002"/>
+                <outletCollection property="gestureRecognizers" destination="tap-g0-001" appends="YES" id="col-p0-003"/>
+                <outletCollection property="gestureRecognizers" destination="pin-g0-001" appends="YES" id="col-p0-004"/>
+            </connections>
+            <point key="canvasLocation" x="0.0" y="0.0"/>
+        </view>
+        <tapGestureRecognizer numberOfTapsRequired="2" id="tap-g0-001">
+            <connections>
+                <action selector="didDoubleTap:" destination="pnl-v0-001" id="act-p0-005"/>
+                <outlet property="delegate" destination="pnl-v0-001" id="out-p0-006"/>
+            </connections>
+        </tapGestureRecognizer>
+        <pinchGestureRecognizer id="pin-g0-001">
+            <connections>
+                <action selector="didPinch:" destination="pnl-v0-001" id="act-p0-006"/>
+            </connections>
+        </pinchGestureRecognizer>
+    </objects>
+    <resources>
+        <image name="close" width="44" height="44"/>
+        <systemColor name="darkTextColor">
+            <color white="0.0" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+        </systemColor>
+    </resources>
+</document>
