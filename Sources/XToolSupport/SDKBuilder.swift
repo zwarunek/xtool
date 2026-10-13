@@ -346,6 +346,48 @@ struct SDKBuilder {
         fi
     done
 
+    # The SDK version in LC_BUILD_VERSION. clang gives the linker the SDK version only when it knows the
+    # linker is lld (-fuse-ld=lld; otherwise it passes the legacy -<platform>_version_min) and the SDK came
+    # through -isysroot (swift-driver links with --sysroot, so clang passes the minimum version twice).
+    # ld64 reads the version from the -syslibroot SDK's settings itself; lld records whatever it is given,
+    # so binaries said "sdk 15.0" where Xcode's say the SDK's version (26.5), which is what UIKit's
+    # linked-on-or-after checks read. Do what ld64 does.
+    sdk_version=
+    if find_argument_value -syslibroot "$@" && [ -f "$argument_value/SDKSettings.json" ]; then
+        sdk_version="$(sed -n 's/.*"Version":"//p' "$argument_value/SDKSettings.json" | cut -d'"' -f1)"
+    fi
+    if [ -n "$sdk_version" ]; then
+        platform_args_left=0
+        legacy_platform=
+        for argument do
+            shift
+            if [ -n "$legacy_platform" ]; then
+                set -- "$@" -platform_version "$legacy_platform" "$argument" "$sdk_version"
+                legacy_platform=
+                continue
+            fi
+            if [ "$platform_args_left" -gt 0 ]; then
+                platform_args_left=$((platform_args_left - 1))
+                if [ "$platform_args_left" -eq 0 ]; then
+                    argument="$sdk_version"
+                fi
+                set -- "$@" "$argument"
+                continue
+            fi
+            case "$argument" in
+                -platform_version) platform_args_left=3 ;;
+                -ios_version_min | -iphoneos_version_min) legacy_platform=ios; continue ;;
+                -ios_simulator_version_min) legacy_platform=ios-simulator; continue ;;
+                -macos_version_min | -macosx_version_min) legacy_platform=macos; continue ;;
+                -tvos_version_min) legacy_platform=tvos; continue ;;
+                -tvos_simulator_version_min) legacy_platform=tvos-simulator; continue ;;
+                -watchos_version_min) legacy_platform=watchos; continue ;;
+                -watchos_simulator_version_min) legacy_platform=watchos-simulator; continue ;;
+            esac
+            set -- "$@" "$argument"
+        done
+    fi
+
     # ld64 puts __TEXT's sections at the end of the segment, so linked images have room after their load
     # commands; lld puts __text right after them (32 bytes of padding on the simulator). Reserve the
     # space ld64 users rely on, or install_name_tool -id/-change/-add_rpath has no room to grow a
