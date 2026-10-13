@@ -160,6 +160,9 @@ template <class T> struct vt<T, 1> { typedef T type; };
 template <bool B, class T = void> struct enable_if {};
 template <class T> struct enable_if<true, T> { typedef T type; };
 template <class T> struct ident { typedef T type; };
+template <bool B, class T, class F> struct cond { typedef T type; };
+template <class T, class F> struct cond<false, T, F> { typedef F type; };
+template <bool B, class T, class F> using conditional_t = typename cond<B, T, F>::type;
 template <class T> struct remove_cv { typedef T type; };
 template <class T> struct remove_cv<const T> { typedef T type; };
 template <class T> struct remove_cv<volatile T> { typedef T type; };
@@ -187,6 +190,7 @@ template <class E, class X> constexpr auto cvt(X x) {
 // Vector construction with MSL semantics: float4(xy, z, w), float3(s), float2(int2)...
 template <class V, class... A> constexpr V __xt_make(A... a) {
   if constexpr (!__xt::traits<V>::vec) return V(a...);
+  else if constexpr (sizeof...(A) == 1 && (__is_class(A) && ...) && !(__xt::traits<A>::vec && ...)) { V r = (a, ...); return r; }
   else if constexpr (sizeof...(A) == 1 && ((__xt::traits<A>::n == __xt::traits<V>::n && __xt::traits<A>::ext) && ...) && __xt::traits<V>::n > 1)
     return (__xt::cvt<typename __xt::traits<V>::elem>(a), ...);
   else return __xt::make_impl<V>(typename __xt::mkseq<__xt::traits<V>::n>::type(), a...);
@@ -456,17 +460,17 @@ template <class T, int C, int R> struct matrix {
   col_t &operator[](int i) { return columns[i]; }
   const col_t &operator[](int i) const { return columns[i]; }
 };
-template <class T, int C, int R> inline typename __xt::vt<T, R>::type operator*(matrix<T, C, R> m, typename __xt::vt<T, C>::type v) {
+template <class T, int C, int R> inline typename __xt::vt<T, R>::type operator*(const matrix<T, C, R> &m, typename __xt::vt<T, C>::type v) {
   typename __xt::vt<T, R>::type r = m.columns[0] * v[0];
   for (int i = 1; i < C; ++i) r += m.columns[i] * v[i];
   return r;
 }
-template <class T, int C, int R> inline typename __xt::vt<T, C>::type operator*(typename __xt::vt<T, R>::type v, matrix<T, C, R> m) {
+template <class T, int C, int R> inline typename __xt::vt<T, C>::type operator*(typename __xt::vt<T, R>::type v, const matrix<T, C, R> &m) {
   typename __xt::vt<T, C>::type r;
   for (int i = 0; i < C; ++i) r[i] = dot(v, m.columns[i]);
   return r;
 }
-template <class T, int K, int C, int R> inline matrix<T, C, R> operator*(matrix<T, K, R> a, matrix<T, C, K> b) {
+template <class T, int K, int C, int R> inline matrix<T, C, R> operator*(const matrix<T, K, R> &a, const matrix<T, C, K> &b) {
   matrix<T, C, R> r;
   for (int i = 0; i < C; ++i) r.columns[i] = a * b.columns[i];
   return r;
@@ -527,9 +531,703 @@ template <class T, int N> struct packed_vec {
   __declspec(property(get = __gz, put = __pz)) T z;
   __declspec(property(get = __gw, put = __pw)) T w;
   T __gx() const { return v[0]; } T __gy() const { return v[1]; } T __gz() const { return v[2 < N ? 2 : 0]; } T __gw() const { return v[3 < N ? 3 : 0]; }
+  __declspec(property(get = __s_xx)) typename __xt::vt<T, 2>::type xx;
+  typename __xt::vt<T, 2>::type __s_xx() const { typename __xt::vt<T, 2>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xy)) typename __xt::vt<T, 2>::type xy;
+  typename __xt::vt<T, 2>::type __s_xy() const { typename __xt::vt<T, 2>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xz)) typename __xt::vt<T, 2>::type xz;
+  typename __xt::vt<T, 2>::type __s_xz() const { typename __xt::vt<T, 2>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xw)) typename __xt::vt<T, 2>::type xw;
+  typename __xt::vt<T, 2>::type __s_xw() const { typename __xt::vt<T, 2>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yx)) typename __xt::vt<T, 2>::type yx;
+  typename __xt::vt<T, 2>::type __s_yx() const { typename __xt::vt<T, 2>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yy)) typename __xt::vt<T, 2>::type yy;
+  typename __xt::vt<T, 2>::type __s_yy() const { typename __xt::vt<T, 2>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yz)) typename __xt::vt<T, 2>::type yz;
+  typename __xt::vt<T, 2>::type __s_yz() const { typename __xt::vt<T, 2>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yw)) typename __xt::vt<T, 2>::type yw;
+  typename __xt::vt<T, 2>::type __s_yw() const { typename __xt::vt<T, 2>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zx)) typename __xt::vt<T, 2>::type zx;
+  typename __xt::vt<T, 2>::type __s_zx() const { typename __xt::vt<T, 2>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zy)) typename __xt::vt<T, 2>::type zy;
+  typename __xt::vt<T, 2>::type __s_zy() const { typename __xt::vt<T, 2>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zz)) typename __xt::vt<T, 2>::type zz;
+  typename __xt::vt<T, 2>::type __s_zz() const { typename __xt::vt<T, 2>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zw)) typename __xt::vt<T, 2>::type zw;
+  typename __xt::vt<T, 2>::type __s_zw() const { typename __xt::vt<T, 2>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wx)) typename __xt::vt<T, 2>::type wx;
+  typename __xt::vt<T, 2>::type __s_wx() const { typename __xt::vt<T, 2>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wy)) typename __xt::vt<T, 2>::type wy;
+  typename __xt::vt<T, 2>::type __s_wy() const { typename __xt::vt<T, 2>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wz)) typename __xt::vt<T, 2>::type wz;
+  typename __xt::vt<T, 2>::type __s_wz() const { typename __xt::vt<T, 2>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_ww)) typename __xt::vt<T, 2>::type ww;
+  typename __xt::vt<T, 2>::type __s_ww() const { typename __xt::vt<T, 2>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xxx)) typename __xt::vt<T, 3>::type xxx;
+  typename __xt::vt<T, 3>::type __s_xxx() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xxy)) typename __xt::vt<T, 3>::type xxy;
+  typename __xt::vt<T, 3>::type __s_xxy() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xxz)) typename __xt::vt<T, 3>::type xxz;
+  typename __xt::vt<T, 3>::type __s_xxz() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xxw)) typename __xt::vt<T, 3>::type xxw;
+  typename __xt::vt<T, 3>::type __s_xxw() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xyx)) typename __xt::vt<T, 3>::type xyx;
+  typename __xt::vt<T, 3>::type __s_xyx() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xyy)) typename __xt::vt<T, 3>::type xyy;
+  typename __xt::vt<T, 3>::type __s_xyy() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xyz)) typename __xt::vt<T, 3>::type xyz;
+  typename __xt::vt<T, 3>::type __s_xyz() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xyw)) typename __xt::vt<T, 3>::type xyw;
+  typename __xt::vt<T, 3>::type __s_xyw() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xzx)) typename __xt::vt<T, 3>::type xzx;
+  typename __xt::vt<T, 3>::type __s_xzx() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xzy)) typename __xt::vt<T, 3>::type xzy;
+  typename __xt::vt<T, 3>::type __s_xzy() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xzz)) typename __xt::vt<T, 3>::type xzz;
+  typename __xt::vt<T, 3>::type __s_xzz() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xzw)) typename __xt::vt<T, 3>::type xzw;
+  typename __xt::vt<T, 3>::type __s_xzw() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xwx)) typename __xt::vt<T, 3>::type xwx;
+  typename __xt::vt<T, 3>::type __s_xwx() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xwy)) typename __xt::vt<T, 3>::type xwy;
+  typename __xt::vt<T, 3>::type __s_xwy() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xwz)) typename __xt::vt<T, 3>::type xwz;
+  typename __xt::vt<T, 3>::type __s_xwz() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xww)) typename __xt::vt<T, 3>::type xww;
+  typename __xt::vt<T, 3>::type __s_xww() const { typename __xt::vt<T, 3>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yxx)) typename __xt::vt<T, 3>::type yxx;
+  typename __xt::vt<T, 3>::type __s_yxx() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yxy)) typename __xt::vt<T, 3>::type yxy;
+  typename __xt::vt<T, 3>::type __s_yxy() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yxz)) typename __xt::vt<T, 3>::type yxz;
+  typename __xt::vt<T, 3>::type __s_yxz() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yxw)) typename __xt::vt<T, 3>::type yxw;
+  typename __xt::vt<T, 3>::type __s_yxw() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yyx)) typename __xt::vt<T, 3>::type yyx;
+  typename __xt::vt<T, 3>::type __s_yyx() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yyy)) typename __xt::vt<T, 3>::type yyy;
+  typename __xt::vt<T, 3>::type __s_yyy() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yyz)) typename __xt::vt<T, 3>::type yyz;
+  typename __xt::vt<T, 3>::type __s_yyz() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yyw)) typename __xt::vt<T, 3>::type yyw;
+  typename __xt::vt<T, 3>::type __s_yyw() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yzx)) typename __xt::vt<T, 3>::type yzx;
+  typename __xt::vt<T, 3>::type __s_yzx() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yzy)) typename __xt::vt<T, 3>::type yzy;
+  typename __xt::vt<T, 3>::type __s_yzy() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yzz)) typename __xt::vt<T, 3>::type yzz;
+  typename __xt::vt<T, 3>::type __s_yzz() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yzw)) typename __xt::vt<T, 3>::type yzw;
+  typename __xt::vt<T, 3>::type __s_yzw() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_ywx)) typename __xt::vt<T, 3>::type ywx;
+  typename __xt::vt<T, 3>::type __s_ywx() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_ywy)) typename __xt::vt<T, 3>::type ywy;
+  typename __xt::vt<T, 3>::type __s_ywy() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_ywz)) typename __xt::vt<T, 3>::type ywz;
+  typename __xt::vt<T, 3>::type __s_ywz() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yww)) typename __xt::vt<T, 3>::type yww;
+  typename __xt::vt<T, 3>::type __s_yww() const { typename __xt::vt<T, 3>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zxx)) typename __xt::vt<T, 3>::type zxx;
+  typename __xt::vt<T, 3>::type __s_zxx() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zxy)) typename __xt::vt<T, 3>::type zxy;
+  typename __xt::vt<T, 3>::type __s_zxy() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zxz)) typename __xt::vt<T, 3>::type zxz;
+  typename __xt::vt<T, 3>::type __s_zxz() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zxw)) typename __xt::vt<T, 3>::type zxw;
+  typename __xt::vt<T, 3>::type __s_zxw() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zyx)) typename __xt::vt<T, 3>::type zyx;
+  typename __xt::vt<T, 3>::type __s_zyx() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zyy)) typename __xt::vt<T, 3>::type zyy;
+  typename __xt::vt<T, 3>::type __s_zyy() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zyz)) typename __xt::vt<T, 3>::type zyz;
+  typename __xt::vt<T, 3>::type __s_zyz() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zyw)) typename __xt::vt<T, 3>::type zyw;
+  typename __xt::vt<T, 3>::type __s_zyw() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zzx)) typename __xt::vt<T, 3>::type zzx;
+  typename __xt::vt<T, 3>::type __s_zzx() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zzy)) typename __xt::vt<T, 3>::type zzy;
+  typename __xt::vt<T, 3>::type __s_zzy() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zzz)) typename __xt::vt<T, 3>::type zzz;
+  typename __xt::vt<T, 3>::type __s_zzz() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zzw)) typename __xt::vt<T, 3>::type zzw;
+  typename __xt::vt<T, 3>::type __s_zzw() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zwx)) typename __xt::vt<T, 3>::type zwx;
+  typename __xt::vt<T, 3>::type __s_zwx() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zwy)) typename __xt::vt<T, 3>::type zwy;
+  typename __xt::vt<T, 3>::type __s_zwy() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zwz)) typename __xt::vt<T, 3>::type zwz;
+  typename __xt::vt<T, 3>::type __s_zwz() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zww)) typename __xt::vt<T, 3>::type zww;
+  typename __xt::vt<T, 3>::type __s_zww() const { typename __xt::vt<T, 3>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wxx)) typename __xt::vt<T, 3>::type wxx;
+  typename __xt::vt<T, 3>::type __s_wxx() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wxy)) typename __xt::vt<T, 3>::type wxy;
+  typename __xt::vt<T, 3>::type __s_wxy() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wxz)) typename __xt::vt<T, 3>::type wxz;
+  typename __xt::vt<T, 3>::type __s_wxz() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wxw)) typename __xt::vt<T, 3>::type wxw;
+  typename __xt::vt<T, 3>::type __s_wxw() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wyx)) typename __xt::vt<T, 3>::type wyx;
+  typename __xt::vt<T, 3>::type __s_wyx() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wyy)) typename __xt::vt<T, 3>::type wyy;
+  typename __xt::vt<T, 3>::type __s_wyy() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wyz)) typename __xt::vt<T, 3>::type wyz;
+  typename __xt::vt<T, 3>::type __s_wyz() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wyw)) typename __xt::vt<T, 3>::type wyw;
+  typename __xt::vt<T, 3>::type __s_wyw() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wzx)) typename __xt::vt<T, 3>::type wzx;
+  typename __xt::vt<T, 3>::type __s_wzx() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wzy)) typename __xt::vt<T, 3>::type wzy;
+  typename __xt::vt<T, 3>::type __s_wzy() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wzz)) typename __xt::vt<T, 3>::type wzz;
+  typename __xt::vt<T, 3>::type __s_wzz() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wzw)) typename __xt::vt<T, 3>::type wzw;
+  typename __xt::vt<T, 3>::type __s_wzw() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wwx)) typename __xt::vt<T, 3>::type wwx;
+  typename __xt::vt<T, 3>::type __s_wwx() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wwy)) typename __xt::vt<T, 3>::type wwy;
+  typename __xt::vt<T, 3>::type __s_wwy() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wwz)) typename __xt::vt<T, 3>::type wwz;
+  typename __xt::vt<T, 3>::type __s_wwz() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_www)) typename __xt::vt<T, 3>::type www;
+  typename __xt::vt<T, 3>::type __s_www() const { typename __xt::vt<T, 3>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xxxx)) typename __xt::vt<T, 4>::type xxxx;
+  typename __xt::vt<T, 4>::type __s_xxxx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xxxy)) typename __xt::vt<T, 4>::type xxxy;
+  typename __xt::vt<T, 4>::type __s_xxxy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xxxz)) typename __xt::vt<T, 4>::type xxxz;
+  typename __xt::vt<T, 4>::type __s_xxxz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xxxw)) typename __xt::vt<T, 4>::type xxxw;
+  typename __xt::vt<T, 4>::type __s_xxxw() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xxyx)) typename __xt::vt<T, 4>::type xxyx;
+  typename __xt::vt<T, 4>::type __s_xxyx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xxyy)) typename __xt::vt<T, 4>::type xxyy;
+  typename __xt::vt<T, 4>::type __s_xxyy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xxyz)) typename __xt::vt<T, 4>::type xxyz;
+  typename __xt::vt<T, 4>::type __s_xxyz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xxyw)) typename __xt::vt<T, 4>::type xxyw;
+  typename __xt::vt<T, 4>::type __s_xxyw() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xxzx)) typename __xt::vt<T, 4>::type xxzx;
+  typename __xt::vt<T, 4>::type __s_xxzx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xxzy)) typename __xt::vt<T, 4>::type xxzy;
+  typename __xt::vt<T, 4>::type __s_xxzy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xxzz)) typename __xt::vt<T, 4>::type xxzz;
+  typename __xt::vt<T, 4>::type __s_xxzz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xxzw)) typename __xt::vt<T, 4>::type xxzw;
+  typename __xt::vt<T, 4>::type __s_xxzw() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xxwx)) typename __xt::vt<T, 4>::type xxwx;
+  typename __xt::vt<T, 4>::type __s_xxwx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xxwy)) typename __xt::vt<T, 4>::type xxwy;
+  typename __xt::vt<T, 4>::type __s_xxwy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xxwz)) typename __xt::vt<T, 4>::type xxwz;
+  typename __xt::vt<T, 4>::type __s_xxwz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xxww)) typename __xt::vt<T, 4>::type xxww;
+  typename __xt::vt<T, 4>::type __s_xxww() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xyxx)) typename __xt::vt<T, 4>::type xyxx;
+  typename __xt::vt<T, 4>::type __s_xyxx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xyxy)) typename __xt::vt<T, 4>::type xyxy;
+  typename __xt::vt<T, 4>::type __s_xyxy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xyxz)) typename __xt::vt<T, 4>::type xyxz;
+  typename __xt::vt<T, 4>::type __s_xyxz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xyxw)) typename __xt::vt<T, 4>::type xyxw;
+  typename __xt::vt<T, 4>::type __s_xyxw() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xyyx)) typename __xt::vt<T, 4>::type xyyx;
+  typename __xt::vt<T, 4>::type __s_xyyx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xyyy)) typename __xt::vt<T, 4>::type xyyy;
+  typename __xt::vt<T, 4>::type __s_xyyy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xyyz)) typename __xt::vt<T, 4>::type xyyz;
+  typename __xt::vt<T, 4>::type __s_xyyz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xyyw)) typename __xt::vt<T, 4>::type xyyw;
+  typename __xt::vt<T, 4>::type __s_xyyw() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xyzx)) typename __xt::vt<T, 4>::type xyzx;
+  typename __xt::vt<T, 4>::type __s_xyzx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xyzy)) typename __xt::vt<T, 4>::type xyzy;
+  typename __xt::vt<T, 4>::type __s_xyzy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xyzz)) typename __xt::vt<T, 4>::type xyzz;
+  typename __xt::vt<T, 4>::type __s_xyzz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xyzw)) typename __xt::vt<T, 4>::type xyzw;
+  typename __xt::vt<T, 4>::type __s_xyzw() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xywx)) typename __xt::vt<T, 4>::type xywx;
+  typename __xt::vt<T, 4>::type __s_xywx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xywy)) typename __xt::vt<T, 4>::type xywy;
+  typename __xt::vt<T, 4>::type __s_xywy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xywz)) typename __xt::vt<T, 4>::type xywz;
+  typename __xt::vt<T, 4>::type __s_xywz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xyww)) typename __xt::vt<T, 4>::type xyww;
+  typename __xt::vt<T, 4>::type __s_xyww() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xzxx)) typename __xt::vt<T, 4>::type xzxx;
+  typename __xt::vt<T, 4>::type __s_xzxx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xzxy)) typename __xt::vt<T, 4>::type xzxy;
+  typename __xt::vt<T, 4>::type __s_xzxy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xzxz)) typename __xt::vt<T, 4>::type xzxz;
+  typename __xt::vt<T, 4>::type __s_xzxz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xzxw)) typename __xt::vt<T, 4>::type xzxw;
+  typename __xt::vt<T, 4>::type __s_xzxw() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xzyx)) typename __xt::vt<T, 4>::type xzyx;
+  typename __xt::vt<T, 4>::type __s_xzyx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xzyy)) typename __xt::vt<T, 4>::type xzyy;
+  typename __xt::vt<T, 4>::type __s_xzyy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xzyz)) typename __xt::vt<T, 4>::type xzyz;
+  typename __xt::vt<T, 4>::type __s_xzyz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xzyw)) typename __xt::vt<T, 4>::type xzyw;
+  typename __xt::vt<T, 4>::type __s_xzyw() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xzzx)) typename __xt::vt<T, 4>::type xzzx;
+  typename __xt::vt<T, 4>::type __s_xzzx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xzzy)) typename __xt::vt<T, 4>::type xzzy;
+  typename __xt::vt<T, 4>::type __s_xzzy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xzzz)) typename __xt::vt<T, 4>::type xzzz;
+  typename __xt::vt<T, 4>::type __s_xzzz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xzzw)) typename __xt::vt<T, 4>::type xzzw;
+  typename __xt::vt<T, 4>::type __s_xzzw() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xzwx)) typename __xt::vt<T, 4>::type xzwx;
+  typename __xt::vt<T, 4>::type __s_xzwx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xzwy)) typename __xt::vt<T, 4>::type xzwy;
+  typename __xt::vt<T, 4>::type __s_xzwy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xzwz)) typename __xt::vt<T, 4>::type xzwz;
+  typename __xt::vt<T, 4>::type __s_xzwz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xzww)) typename __xt::vt<T, 4>::type xzww;
+  typename __xt::vt<T, 4>::type __s_xzww() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xwxx)) typename __xt::vt<T, 4>::type xwxx;
+  typename __xt::vt<T, 4>::type __s_xwxx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xwxy)) typename __xt::vt<T, 4>::type xwxy;
+  typename __xt::vt<T, 4>::type __s_xwxy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xwxz)) typename __xt::vt<T, 4>::type xwxz;
+  typename __xt::vt<T, 4>::type __s_xwxz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xwxw)) typename __xt::vt<T, 4>::type xwxw;
+  typename __xt::vt<T, 4>::type __s_xwxw() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xwyx)) typename __xt::vt<T, 4>::type xwyx;
+  typename __xt::vt<T, 4>::type __s_xwyx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xwyy)) typename __xt::vt<T, 4>::type xwyy;
+  typename __xt::vt<T, 4>::type __s_xwyy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xwyz)) typename __xt::vt<T, 4>::type xwyz;
+  typename __xt::vt<T, 4>::type __s_xwyz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xwyw)) typename __xt::vt<T, 4>::type xwyw;
+  typename __xt::vt<T, 4>::type __s_xwyw() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xwzx)) typename __xt::vt<T, 4>::type xwzx;
+  typename __xt::vt<T, 4>::type __s_xwzx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xwzy)) typename __xt::vt<T, 4>::type xwzy;
+  typename __xt::vt<T, 4>::type __s_xwzy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xwzz)) typename __xt::vt<T, 4>::type xwzz;
+  typename __xt::vt<T, 4>::type __s_xwzz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xwzw)) typename __xt::vt<T, 4>::type xwzw;
+  typename __xt::vt<T, 4>::type __s_xwzw() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xwwx)) typename __xt::vt<T, 4>::type xwwx;
+  typename __xt::vt<T, 4>::type __s_xwwx() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_xwwy)) typename __xt::vt<T, 4>::type xwwy;
+  typename __xt::vt<T, 4>::type __s_xwwy() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_xwwz)) typename __xt::vt<T, 4>::type xwwz;
+  typename __xt::vt<T, 4>::type __s_xwwz() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_xwww)) typename __xt::vt<T, 4>::type xwww;
+  typename __xt::vt<T, 4>::type __s_xwww() const { typename __xt::vt<T, 4>::type r = {v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yxxx)) typename __xt::vt<T, 4>::type yxxx;
+  typename __xt::vt<T, 4>::type __s_yxxx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yxxy)) typename __xt::vt<T, 4>::type yxxy;
+  typename __xt::vt<T, 4>::type __s_yxxy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yxxz)) typename __xt::vt<T, 4>::type yxxz;
+  typename __xt::vt<T, 4>::type __s_yxxz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yxxw)) typename __xt::vt<T, 4>::type yxxw;
+  typename __xt::vt<T, 4>::type __s_yxxw() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yxyx)) typename __xt::vt<T, 4>::type yxyx;
+  typename __xt::vt<T, 4>::type __s_yxyx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yxyy)) typename __xt::vt<T, 4>::type yxyy;
+  typename __xt::vt<T, 4>::type __s_yxyy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yxyz)) typename __xt::vt<T, 4>::type yxyz;
+  typename __xt::vt<T, 4>::type __s_yxyz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yxyw)) typename __xt::vt<T, 4>::type yxyw;
+  typename __xt::vt<T, 4>::type __s_yxyw() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yxzx)) typename __xt::vt<T, 4>::type yxzx;
+  typename __xt::vt<T, 4>::type __s_yxzx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yxzy)) typename __xt::vt<T, 4>::type yxzy;
+  typename __xt::vt<T, 4>::type __s_yxzy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yxzz)) typename __xt::vt<T, 4>::type yxzz;
+  typename __xt::vt<T, 4>::type __s_yxzz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yxzw)) typename __xt::vt<T, 4>::type yxzw;
+  typename __xt::vt<T, 4>::type __s_yxzw() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yxwx)) typename __xt::vt<T, 4>::type yxwx;
+  typename __xt::vt<T, 4>::type __s_yxwx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yxwy)) typename __xt::vt<T, 4>::type yxwy;
+  typename __xt::vt<T, 4>::type __s_yxwy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yxwz)) typename __xt::vt<T, 4>::type yxwz;
+  typename __xt::vt<T, 4>::type __s_yxwz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yxww)) typename __xt::vt<T, 4>::type yxww;
+  typename __xt::vt<T, 4>::type __s_yxww() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yyxx)) typename __xt::vt<T, 4>::type yyxx;
+  typename __xt::vt<T, 4>::type __s_yyxx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yyxy)) typename __xt::vt<T, 4>::type yyxy;
+  typename __xt::vt<T, 4>::type __s_yyxy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yyxz)) typename __xt::vt<T, 4>::type yyxz;
+  typename __xt::vt<T, 4>::type __s_yyxz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yyxw)) typename __xt::vt<T, 4>::type yyxw;
+  typename __xt::vt<T, 4>::type __s_yyxw() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yyyx)) typename __xt::vt<T, 4>::type yyyx;
+  typename __xt::vt<T, 4>::type __s_yyyx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yyyy)) typename __xt::vt<T, 4>::type yyyy;
+  typename __xt::vt<T, 4>::type __s_yyyy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yyyz)) typename __xt::vt<T, 4>::type yyyz;
+  typename __xt::vt<T, 4>::type __s_yyyz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yyyw)) typename __xt::vt<T, 4>::type yyyw;
+  typename __xt::vt<T, 4>::type __s_yyyw() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yyzx)) typename __xt::vt<T, 4>::type yyzx;
+  typename __xt::vt<T, 4>::type __s_yyzx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yyzy)) typename __xt::vt<T, 4>::type yyzy;
+  typename __xt::vt<T, 4>::type __s_yyzy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yyzz)) typename __xt::vt<T, 4>::type yyzz;
+  typename __xt::vt<T, 4>::type __s_yyzz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yyzw)) typename __xt::vt<T, 4>::type yyzw;
+  typename __xt::vt<T, 4>::type __s_yyzw() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yywx)) typename __xt::vt<T, 4>::type yywx;
+  typename __xt::vt<T, 4>::type __s_yywx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yywy)) typename __xt::vt<T, 4>::type yywy;
+  typename __xt::vt<T, 4>::type __s_yywy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yywz)) typename __xt::vt<T, 4>::type yywz;
+  typename __xt::vt<T, 4>::type __s_yywz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yyww)) typename __xt::vt<T, 4>::type yyww;
+  typename __xt::vt<T, 4>::type __s_yyww() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yzxx)) typename __xt::vt<T, 4>::type yzxx;
+  typename __xt::vt<T, 4>::type __s_yzxx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yzxy)) typename __xt::vt<T, 4>::type yzxy;
+  typename __xt::vt<T, 4>::type __s_yzxy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yzxz)) typename __xt::vt<T, 4>::type yzxz;
+  typename __xt::vt<T, 4>::type __s_yzxz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yzxw)) typename __xt::vt<T, 4>::type yzxw;
+  typename __xt::vt<T, 4>::type __s_yzxw() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yzyx)) typename __xt::vt<T, 4>::type yzyx;
+  typename __xt::vt<T, 4>::type __s_yzyx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yzyy)) typename __xt::vt<T, 4>::type yzyy;
+  typename __xt::vt<T, 4>::type __s_yzyy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yzyz)) typename __xt::vt<T, 4>::type yzyz;
+  typename __xt::vt<T, 4>::type __s_yzyz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yzyw)) typename __xt::vt<T, 4>::type yzyw;
+  typename __xt::vt<T, 4>::type __s_yzyw() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yzzx)) typename __xt::vt<T, 4>::type yzzx;
+  typename __xt::vt<T, 4>::type __s_yzzx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yzzy)) typename __xt::vt<T, 4>::type yzzy;
+  typename __xt::vt<T, 4>::type __s_yzzy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yzzz)) typename __xt::vt<T, 4>::type yzzz;
+  typename __xt::vt<T, 4>::type __s_yzzz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yzzw)) typename __xt::vt<T, 4>::type yzzw;
+  typename __xt::vt<T, 4>::type __s_yzzw() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_yzwx)) typename __xt::vt<T, 4>::type yzwx;
+  typename __xt::vt<T, 4>::type __s_yzwx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_yzwy)) typename __xt::vt<T, 4>::type yzwy;
+  typename __xt::vt<T, 4>::type __s_yzwy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_yzwz)) typename __xt::vt<T, 4>::type yzwz;
+  typename __xt::vt<T, 4>::type __s_yzwz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_yzww)) typename __xt::vt<T, 4>::type yzww;
+  typename __xt::vt<T, 4>::type __s_yzww() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_ywxx)) typename __xt::vt<T, 4>::type ywxx;
+  typename __xt::vt<T, 4>::type __s_ywxx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_ywxy)) typename __xt::vt<T, 4>::type ywxy;
+  typename __xt::vt<T, 4>::type __s_ywxy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_ywxz)) typename __xt::vt<T, 4>::type ywxz;
+  typename __xt::vt<T, 4>::type __s_ywxz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_ywxw)) typename __xt::vt<T, 4>::type ywxw;
+  typename __xt::vt<T, 4>::type __s_ywxw() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_ywyx)) typename __xt::vt<T, 4>::type ywyx;
+  typename __xt::vt<T, 4>::type __s_ywyx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_ywyy)) typename __xt::vt<T, 4>::type ywyy;
+  typename __xt::vt<T, 4>::type __s_ywyy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_ywyz)) typename __xt::vt<T, 4>::type ywyz;
+  typename __xt::vt<T, 4>::type __s_ywyz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_ywyw)) typename __xt::vt<T, 4>::type ywyw;
+  typename __xt::vt<T, 4>::type __s_ywyw() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_ywzx)) typename __xt::vt<T, 4>::type ywzx;
+  typename __xt::vt<T, 4>::type __s_ywzx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_ywzy)) typename __xt::vt<T, 4>::type ywzy;
+  typename __xt::vt<T, 4>::type __s_ywzy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_ywzz)) typename __xt::vt<T, 4>::type ywzz;
+  typename __xt::vt<T, 4>::type __s_ywzz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_ywzw)) typename __xt::vt<T, 4>::type ywzw;
+  typename __xt::vt<T, 4>::type __s_ywzw() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_ywwx)) typename __xt::vt<T, 4>::type ywwx;
+  typename __xt::vt<T, 4>::type __s_ywwx() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_ywwy)) typename __xt::vt<T, 4>::type ywwy;
+  typename __xt::vt<T, 4>::type __s_ywwy() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_ywwz)) typename __xt::vt<T, 4>::type ywwz;
+  typename __xt::vt<T, 4>::type __s_ywwz() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_ywww)) typename __xt::vt<T, 4>::type ywww;
+  typename __xt::vt<T, 4>::type __s_ywww() const { typename __xt::vt<T, 4>::type r = {v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zxxx)) typename __xt::vt<T, 4>::type zxxx;
+  typename __xt::vt<T, 4>::type __s_zxxx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zxxy)) typename __xt::vt<T, 4>::type zxxy;
+  typename __xt::vt<T, 4>::type __s_zxxy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zxxz)) typename __xt::vt<T, 4>::type zxxz;
+  typename __xt::vt<T, 4>::type __s_zxxz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zxxw)) typename __xt::vt<T, 4>::type zxxw;
+  typename __xt::vt<T, 4>::type __s_zxxw() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zxyx)) typename __xt::vt<T, 4>::type zxyx;
+  typename __xt::vt<T, 4>::type __s_zxyx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zxyy)) typename __xt::vt<T, 4>::type zxyy;
+  typename __xt::vt<T, 4>::type __s_zxyy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zxyz)) typename __xt::vt<T, 4>::type zxyz;
+  typename __xt::vt<T, 4>::type __s_zxyz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zxyw)) typename __xt::vt<T, 4>::type zxyw;
+  typename __xt::vt<T, 4>::type __s_zxyw() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zxzx)) typename __xt::vt<T, 4>::type zxzx;
+  typename __xt::vt<T, 4>::type __s_zxzx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zxzy)) typename __xt::vt<T, 4>::type zxzy;
+  typename __xt::vt<T, 4>::type __s_zxzy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zxzz)) typename __xt::vt<T, 4>::type zxzz;
+  typename __xt::vt<T, 4>::type __s_zxzz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zxzw)) typename __xt::vt<T, 4>::type zxzw;
+  typename __xt::vt<T, 4>::type __s_zxzw() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zxwx)) typename __xt::vt<T, 4>::type zxwx;
+  typename __xt::vt<T, 4>::type __s_zxwx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zxwy)) typename __xt::vt<T, 4>::type zxwy;
+  typename __xt::vt<T, 4>::type __s_zxwy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zxwz)) typename __xt::vt<T, 4>::type zxwz;
+  typename __xt::vt<T, 4>::type __s_zxwz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zxww)) typename __xt::vt<T, 4>::type zxww;
+  typename __xt::vt<T, 4>::type __s_zxww() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zyxx)) typename __xt::vt<T, 4>::type zyxx;
+  typename __xt::vt<T, 4>::type __s_zyxx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zyxy)) typename __xt::vt<T, 4>::type zyxy;
+  typename __xt::vt<T, 4>::type __s_zyxy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zyxz)) typename __xt::vt<T, 4>::type zyxz;
+  typename __xt::vt<T, 4>::type __s_zyxz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zyxw)) typename __xt::vt<T, 4>::type zyxw;
+  typename __xt::vt<T, 4>::type __s_zyxw() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zyyx)) typename __xt::vt<T, 4>::type zyyx;
+  typename __xt::vt<T, 4>::type __s_zyyx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zyyy)) typename __xt::vt<T, 4>::type zyyy;
+  typename __xt::vt<T, 4>::type __s_zyyy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zyyz)) typename __xt::vt<T, 4>::type zyyz;
+  typename __xt::vt<T, 4>::type __s_zyyz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zyyw)) typename __xt::vt<T, 4>::type zyyw;
+  typename __xt::vt<T, 4>::type __s_zyyw() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zyzx)) typename __xt::vt<T, 4>::type zyzx;
+  typename __xt::vt<T, 4>::type __s_zyzx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zyzy)) typename __xt::vt<T, 4>::type zyzy;
+  typename __xt::vt<T, 4>::type __s_zyzy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zyzz)) typename __xt::vt<T, 4>::type zyzz;
+  typename __xt::vt<T, 4>::type __s_zyzz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zyzw)) typename __xt::vt<T, 4>::type zyzw;
+  typename __xt::vt<T, 4>::type __s_zyzw() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zywx)) typename __xt::vt<T, 4>::type zywx;
+  typename __xt::vt<T, 4>::type __s_zywx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zywy)) typename __xt::vt<T, 4>::type zywy;
+  typename __xt::vt<T, 4>::type __s_zywy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zywz)) typename __xt::vt<T, 4>::type zywz;
+  typename __xt::vt<T, 4>::type __s_zywz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zyww)) typename __xt::vt<T, 4>::type zyww;
+  typename __xt::vt<T, 4>::type __s_zyww() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zzxx)) typename __xt::vt<T, 4>::type zzxx;
+  typename __xt::vt<T, 4>::type __s_zzxx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zzxy)) typename __xt::vt<T, 4>::type zzxy;
+  typename __xt::vt<T, 4>::type __s_zzxy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zzxz)) typename __xt::vt<T, 4>::type zzxz;
+  typename __xt::vt<T, 4>::type __s_zzxz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zzxw)) typename __xt::vt<T, 4>::type zzxw;
+  typename __xt::vt<T, 4>::type __s_zzxw() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zzyx)) typename __xt::vt<T, 4>::type zzyx;
+  typename __xt::vt<T, 4>::type __s_zzyx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zzyy)) typename __xt::vt<T, 4>::type zzyy;
+  typename __xt::vt<T, 4>::type __s_zzyy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zzyz)) typename __xt::vt<T, 4>::type zzyz;
+  typename __xt::vt<T, 4>::type __s_zzyz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zzyw)) typename __xt::vt<T, 4>::type zzyw;
+  typename __xt::vt<T, 4>::type __s_zzyw() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zzzx)) typename __xt::vt<T, 4>::type zzzx;
+  typename __xt::vt<T, 4>::type __s_zzzx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zzzy)) typename __xt::vt<T, 4>::type zzzy;
+  typename __xt::vt<T, 4>::type __s_zzzy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zzzz)) typename __xt::vt<T, 4>::type zzzz;
+  typename __xt::vt<T, 4>::type __s_zzzz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zzzw)) typename __xt::vt<T, 4>::type zzzw;
+  typename __xt::vt<T, 4>::type __s_zzzw() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zzwx)) typename __xt::vt<T, 4>::type zzwx;
+  typename __xt::vt<T, 4>::type __s_zzwx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zzwy)) typename __xt::vt<T, 4>::type zzwy;
+  typename __xt::vt<T, 4>::type __s_zzwy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zzwz)) typename __xt::vt<T, 4>::type zzwz;
+  typename __xt::vt<T, 4>::type __s_zzwz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zzww)) typename __xt::vt<T, 4>::type zzww;
+  typename __xt::vt<T, 4>::type __s_zzww() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zwxx)) typename __xt::vt<T, 4>::type zwxx;
+  typename __xt::vt<T, 4>::type __s_zwxx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zwxy)) typename __xt::vt<T, 4>::type zwxy;
+  typename __xt::vt<T, 4>::type __s_zwxy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zwxz)) typename __xt::vt<T, 4>::type zwxz;
+  typename __xt::vt<T, 4>::type __s_zwxz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zwxw)) typename __xt::vt<T, 4>::type zwxw;
+  typename __xt::vt<T, 4>::type __s_zwxw() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zwyx)) typename __xt::vt<T, 4>::type zwyx;
+  typename __xt::vt<T, 4>::type __s_zwyx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zwyy)) typename __xt::vt<T, 4>::type zwyy;
+  typename __xt::vt<T, 4>::type __s_zwyy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zwyz)) typename __xt::vt<T, 4>::type zwyz;
+  typename __xt::vt<T, 4>::type __s_zwyz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zwyw)) typename __xt::vt<T, 4>::type zwyw;
+  typename __xt::vt<T, 4>::type __s_zwyw() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zwzx)) typename __xt::vt<T, 4>::type zwzx;
+  typename __xt::vt<T, 4>::type __s_zwzx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zwzy)) typename __xt::vt<T, 4>::type zwzy;
+  typename __xt::vt<T, 4>::type __s_zwzy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zwzz)) typename __xt::vt<T, 4>::type zwzz;
+  typename __xt::vt<T, 4>::type __s_zwzz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zwzw)) typename __xt::vt<T, 4>::type zwzw;
+  typename __xt::vt<T, 4>::type __s_zwzw() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_zwwx)) typename __xt::vt<T, 4>::type zwwx;
+  typename __xt::vt<T, 4>::type __s_zwwx() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_zwwy)) typename __xt::vt<T, 4>::type zwwy;
+  typename __xt::vt<T, 4>::type __s_zwwy() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_zwwz)) typename __xt::vt<T, 4>::type zwwz;
+  typename __xt::vt<T, 4>::type __s_zwwz() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_zwww)) typename __xt::vt<T, 4>::type zwww;
+  typename __xt::vt<T, 4>::type __s_zwww() const { typename __xt::vt<T, 4>::type r = {v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wxxx)) typename __xt::vt<T, 4>::type wxxx;
+  typename __xt::vt<T, 4>::type __s_wxxx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wxxy)) typename __xt::vt<T, 4>::type wxxy;
+  typename __xt::vt<T, 4>::type __s_wxxy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wxxz)) typename __xt::vt<T, 4>::type wxxz;
+  typename __xt::vt<T, 4>::type __s_wxxz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wxxw)) typename __xt::vt<T, 4>::type wxxw;
+  typename __xt::vt<T, 4>::type __s_wxxw() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wxyx)) typename __xt::vt<T, 4>::type wxyx;
+  typename __xt::vt<T, 4>::type __s_wxyx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wxyy)) typename __xt::vt<T, 4>::type wxyy;
+  typename __xt::vt<T, 4>::type __s_wxyy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wxyz)) typename __xt::vt<T, 4>::type wxyz;
+  typename __xt::vt<T, 4>::type __s_wxyz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wxyw)) typename __xt::vt<T, 4>::type wxyw;
+  typename __xt::vt<T, 4>::type __s_wxyw() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wxzx)) typename __xt::vt<T, 4>::type wxzx;
+  typename __xt::vt<T, 4>::type __s_wxzx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wxzy)) typename __xt::vt<T, 4>::type wxzy;
+  typename __xt::vt<T, 4>::type __s_wxzy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wxzz)) typename __xt::vt<T, 4>::type wxzz;
+  typename __xt::vt<T, 4>::type __s_wxzz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wxzw)) typename __xt::vt<T, 4>::type wxzw;
+  typename __xt::vt<T, 4>::type __s_wxzw() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wxwx)) typename __xt::vt<T, 4>::type wxwx;
+  typename __xt::vt<T, 4>::type __s_wxwx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wxwy)) typename __xt::vt<T, 4>::type wxwy;
+  typename __xt::vt<T, 4>::type __s_wxwy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wxwz)) typename __xt::vt<T, 4>::type wxwz;
+  typename __xt::vt<T, 4>::type __s_wxwz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wxww)) typename __xt::vt<T, 4>::type wxww;
+  typename __xt::vt<T, 4>::type __s_wxww() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wyxx)) typename __xt::vt<T, 4>::type wyxx;
+  typename __xt::vt<T, 4>::type __s_wyxx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wyxy)) typename __xt::vt<T, 4>::type wyxy;
+  typename __xt::vt<T, 4>::type __s_wyxy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wyxz)) typename __xt::vt<T, 4>::type wyxz;
+  typename __xt::vt<T, 4>::type __s_wyxz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wyxw)) typename __xt::vt<T, 4>::type wyxw;
+  typename __xt::vt<T, 4>::type __s_wyxw() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wyyx)) typename __xt::vt<T, 4>::type wyyx;
+  typename __xt::vt<T, 4>::type __s_wyyx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wyyy)) typename __xt::vt<T, 4>::type wyyy;
+  typename __xt::vt<T, 4>::type __s_wyyy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wyyz)) typename __xt::vt<T, 4>::type wyyz;
+  typename __xt::vt<T, 4>::type __s_wyyz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wyyw)) typename __xt::vt<T, 4>::type wyyw;
+  typename __xt::vt<T, 4>::type __s_wyyw() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wyzx)) typename __xt::vt<T, 4>::type wyzx;
+  typename __xt::vt<T, 4>::type __s_wyzx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wyzy)) typename __xt::vt<T, 4>::type wyzy;
+  typename __xt::vt<T, 4>::type __s_wyzy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wyzz)) typename __xt::vt<T, 4>::type wyzz;
+  typename __xt::vt<T, 4>::type __s_wyzz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wyzw)) typename __xt::vt<T, 4>::type wyzw;
+  typename __xt::vt<T, 4>::type __s_wyzw() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wywx)) typename __xt::vt<T, 4>::type wywx;
+  typename __xt::vt<T, 4>::type __s_wywx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wywy)) typename __xt::vt<T, 4>::type wywy;
+  typename __xt::vt<T, 4>::type __s_wywy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wywz)) typename __xt::vt<T, 4>::type wywz;
+  typename __xt::vt<T, 4>::type __s_wywz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wyww)) typename __xt::vt<T, 4>::type wyww;
+  typename __xt::vt<T, 4>::type __s_wyww() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wzxx)) typename __xt::vt<T, 4>::type wzxx;
+  typename __xt::vt<T, 4>::type __s_wzxx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wzxy)) typename __xt::vt<T, 4>::type wzxy;
+  typename __xt::vt<T, 4>::type __s_wzxy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wzxz)) typename __xt::vt<T, 4>::type wzxz;
+  typename __xt::vt<T, 4>::type __s_wzxz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wzxw)) typename __xt::vt<T, 4>::type wzxw;
+  typename __xt::vt<T, 4>::type __s_wzxw() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wzyx)) typename __xt::vt<T, 4>::type wzyx;
+  typename __xt::vt<T, 4>::type __s_wzyx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wzyy)) typename __xt::vt<T, 4>::type wzyy;
+  typename __xt::vt<T, 4>::type __s_wzyy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wzyz)) typename __xt::vt<T, 4>::type wzyz;
+  typename __xt::vt<T, 4>::type __s_wzyz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wzyw)) typename __xt::vt<T, 4>::type wzyw;
+  typename __xt::vt<T, 4>::type __s_wzyw() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wzzx)) typename __xt::vt<T, 4>::type wzzx;
+  typename __xt::vt<T, 4>::type __s_wzzx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wzzy)) typename __xt::vt<T, 4>::type wzzy;
+  typename __xt::vt<T, 4>::type __s_wzzy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wzzz)) typename __xt::vt<T, 4>::type wzzz;
+  typename __xt::vt<T, 4>::type __s_wzzz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wzzw)) typename __xt::vt<T, 4>::type wzzw;
+  typename __xt::vt<T, 4>::type __s_wzzw() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wzwx)) typename __xt::vt<T, 4>::type wzwx;
+  typename __xt::vt<T, 4>::type __s_wzwx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wzwy)) typename __xt::vt<T, 4>::type wzwy;
+  typename __xt::vt<T, 4>::type __s_wzwy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wzwz)) typename __xt::vt<T, 4>::type wzwz;
+  typename __xt::vt<T, 4>::type __s_wzwz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wzww)) typename __xt::vt<T, 4>::type wzww;
+  typename __xt::vt<T, 4>::type __s_wzww() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wwxx)) typename __xt::vt<T, 4>::type wwxx;
+  typename __xt::vt<T, 4>::type __s_wwxx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wwxy)) typename __xt::vt<T, 4>::type wwxy;
+  typename __xt::vt<T, 4>::type __s_wwxy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wwxz)) typename __xt::vt<T, 4>::type wwxz;
+  typename __xt::vt<T, 4>::type __s_wwxz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wwxw)) typename __xt::vt<T, 4>::type wwxw;
+  typename __xt::vt<T, 4>::type __s_wwxw() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wwyx)) typename __xt::vt<T, 4>::type wwyx;
+  typename __xt::vt<T, 4>::type __s_wwyx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wwyy)) typename __xt::vt<T, 4>::type wwyy;
+  typename __xt::vt<T, 4>::type __s_wwyy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wwyz)) typename __xt::vt<T, 4>::type wwyz;
+  typename __xt::vt<T, 4>::type __s_wwyz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wwyw)) typename __xt::vt<T, 4>::type wwyw;
+  typename __xt::vt<T, 4>::type __s_wwyw() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wwzx)) typename __xt::vt<T, 4>::type wwzx;
+  typename __xt::vt<T, 4>::type __s_wwzx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wwzy)) typename __xt::vt<T, 4>::type wwzy;
+  typename __xt::vt<T, 4>::type __s_wwzy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wwzz)) typename __xt::vt<T, 4>::type wwzz;
+  typename __xt::vt<T, 4>::type __s_wwzz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wwzw)) typename __xt::vt<T, 4>::type wwzw;
+  typename __xt::vt<T, 4>::type __s_wwzw() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_wwwx)) typename __xt::vt<T, 4>::type wwwx;
+  typename __xt::vt<T, 4>::type __s_wwwx() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[0 < N ? 0 : 0]}; return r; }
+  __declspec(property(get = __s_wwwy)) typename __xt::vt<T, 4>::type wwwy;
+  typename __xt::vt<T, 4>::type __s_wwwy() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[1 < N ? 1 : 0]}; return r; }
+  __declspec(property(get = __s_wwwz)) typename __xt::vt<T, 4>::type wwwz;
+  typename __xt::vt<T, 4>::type __s_wwwz() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[2 < N ? 2 : 0]}; return r; }
+  __declspec(property(get = __s_wwww)) typename __xt::vt<T, 4>::type wwww;
+  typename __xt::vt<T, 4>::type __s_wwww() const { typename __xt::vt<T, 4>::type r = {v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0], v[3 < N ? 3 : 0]}; return r; }
+  __declspec(property(get = __s_xyz)) typename __xt::vt<T, 3>::type rgb;
+  __declspec(property(get = __s_xyzw)) typename __xt::vt<T, 4>::type rgba;
+  __declspec(property(get = __s_xy)) typename __xt::vt<T, 2>::type rg;
   void __px(T a) { v[0] = a; } void __py(T a) { v[1] = a; } void __pz(T a) { v[2 < N ? 2 : 0] = a; } void __pw(T a) { v[3 < N ? 3 : 0] = a; }
 };
 ''')
+w('''template <class T, int N> constexpr typename __xt::vt<T, N>::type __unpack(packed_vec<T, N> p) { return p; }
+template <class T, int N, class X> inline auto operator+(packed_vec<T, N> a, X b) -> decltype(__unpack(a) + b) { return __unpack(a) + b; }
+template <class T, int N, class X> inline auto operator+(X a, packed_vec<T, N> b) -> decltype(a + __unpack(b)) { return a + __unpack(b); }
+template <class T, int N> inline auto operator+(packed_vec<T, N> a, packed_vec<T, N> b) { return __unpack(a) + __unpack(b); }
+template <class T, int N, class X> inline auto operator-(packed_vec<T, N> a, X b) -> decltype(__unpack(a) - b) { return __unpack(a) - b; }
+template <class T, int N, class X> inline auto operator-(X a, packed_vec<T, N> b) -> decltype(a - __unpack(b)) { return a - __unpack(b); }
+template <class T, int N> inline auto operator-(packed_vec<T, N> a, packed_vec<T, N> b) { return __unpack(a) - __unpack(b); }
+template <class T, int N, class X> inline auto operator*(packed_vec<T, N> a, X b) -> decltype(__unpack(a) * b) { return __unpack(a) * b; }
+template <class T, int N, class X> inline auto operator*(X a, packed_vec<T, N> b) -> decltype(a * __unpack(b)) { return a * __unpack(b); }
+template <class T, int N> inline auto operator*(packed_vec<T, N> a, packed_vec<T, N> b) { return __unpack(a) * __unpack(b); }
+template <class T, int N, class X> inline auto operator/(packed_vec<T, N> a, X b) -> decltype(__unpack(a) / b) { return __unpack(a) / b; }
+template <class T, int N, class X> inline auto operator/(X a, packed_vec<T, N> b) -> decltype(a / __unpack(b)) { return a / __unpack(b); }
+template <class T, int N> inline auto operator/(packed_vec<T, N> a, packed_vec<T, N> b) { return __unpack(a) / __unpack(b); }
+template <class T, int N> inline typename __xt::vt<T, N>::type operator-(packed_vec<T, N> a) { return -__unpack(a); }
+template <class T, int N, class X> inline packed_vec<T, N> &operator+=(packed_vec<T, N> &a, X b) { a = __unpack(a) + b; return a; }
+template <class T, int N, class X> inline packed_vec<T, N> &operator-=(packed_vec<T, N> &a, X b) { a = __unpack(a) - b; return a; }
+template <class T, int N, class X> inline packed_vec<T, N> &operator*=(packed_vec<T, N> &a, X b) { a = __unpack(a) * b; return a; }
+template <class T, int N, class X> inline packed_vec<T, N> &operator/=(packed_vec<T, N> &a, X b) { a = __unpack(a) / b; return a; }
+struct MTLIndirectCommandBufferExecutionRange { uint location; uint length; };''')
 for s, *_ in SCALARS:
     if s == 'bool':
         continue
@@ -799,17 +1497,19 @@ for cls, op, d in TEX:
         tw(f'  {rt} read({", ".join(ps)}) const {{ ' + ' else '.join(body) + ' }')
     # write
     if not depth and not ms:
-        wd = 2 if cube else d
-        ps = [f'typename __texel<T>::v4 v', f'{icoordty(wd)} c'] + (['uint slice'] if arr else []) + (['uint face'] if cube else []) + ([] if buf else ['uint lod = 0'])
+      wd = 2 if cube else d
+      for wb in (['uint', 'ushort'] if (d > 1 and not cube and not buf) else ['uint']):
+        ity = 'ushort' if wb == 'ushort' else 'uint'
+        ps = [f'typename __texel<T>::v4 v', f'{icoordty(wd, wb)} c'] + (['uint slice'] if arr else []) + (['uint face'] if cube else []) + ([] if buf else [f'{ity} lod = 0'])
         body = []
         for et, sf, vt in elems:
-            name = f'air.write_{op}.{sf}'
-            args = [T, icoordty(wd)] + (['uint'] if cube else []) + (['uint'] if arr else []) + [vt] + ([] if buf else ['uint']) + ['int']
+            name = f'air.write_{op}{".i16" if wb == "ushort" else ""}.{sf}'
+            args = [T, icoordty(wd, wb)] + (['uint'] if cube else []) + ([ity] if arr else []) + [vt] + ([] if buf else [ity]) + ['int']
             c = air(name, 'void', args, pure=False)
             call = ['__t', 'c'] + (['face'] if cube else []) + (['slice'] if arr else []) + ['v'] + ([] if buf else ['lod']) + ['(int)A']
             body.append(f'if constexpr (__is_same(T, {et})) {c}({", ".join(call)});')
         tw(f'  void write({", ".join(ps)}) const {{ ' + ' else '.join(body) + ' }')
-        tw(f'  void fence() const {{ {air(f"air.fence_{op}", "void", [T], pure=False)}(__t); }}')
+      tw(f'  void fence() const {{ {air(f"air.fence_{op}", "void", [T], pure=False)}(__t); }}')
     # queries
     def q(name, has_lod=True):
         if has_lod:
@@ -839,6 +1539,21 @@ for cls, op, d in TEX:
 w('\n'.join(texcode))
 w('} // namespace metal')
 
+
+# ------------------------------------------------------------------------------------------------- tessellation
+w(r"""
+struct _patch_control_point_t;
+template <class T> __attribute__((noinline)) void __xt_cp_load(uint i, __private _patch_control_point_t *p, T *out) {}
+namespace metal {
+struct MTLQuadTessellationFactorsHalf { half edgeTessellationFactor[4]; half insideTessellationFactor[2]; };
+struct MTLTriangleTessellationFactorsHalf { half edgeTessellationFactor[3]; half insideTessellationFactor; };
+template <class T> struct [[clang::annotate("xt.resource:patch_control_point:_patch_control_point_t:0")]] patch_control_point {
+  __private _patch_control_point_t *__p;
+  T operator[](uint i) const { T r; __xt_cp_load(i, __p, &r); return r; }
+};
+} // namespace metal
+""")
+
 # ------------------------------------------------------------------------------------------------- rate maps, indirect command buffers
 w('namespace metal {')
 w('struct [[clang::annotate("xt.opaque_buffer")]] rasterization_rate_map_data { char __opaque; };')
@@ -853,25 +1568,247 @@ w(f'''struct rasterization_rate_map_decoder {{
 w('enum class primitive_type { point = 0, line = 1, line_strip = 2, triangle = 3, triangle_strip = 4 };')
 CB = '__global _command_buffer_t *'
 c_vb = air('air.set_vertex_buffer_render_command.p1i8', 'void', [CB, 'uint', '__global void *', 'long', 'uint'], pure=False)
-c_fb = air('air.set_fragment_buffer_render_command.p1i8', 'void', [CB, 'uint', '__global void *', 'long', 'uint'], pure=False)
+c_fb = air('air.set_fragment_buffer_render_command.p1i8', 'void', [CB, 'uint', '__global void *', 'uint'], pure=False)
+c_di16 = air('air.draw_indexed_primitives_render_command.p1i16', 'void', [CB, 'uint', 'uint', 'uint', 'const __global ushort *', 'uint', 'uint', 'uint'], pure=False)
+c_di32 = air('air.draw_indexed_primitives_render_command.p1i32', 'void', [CB, 'uint', 'uint', 'uint', 'const __global uint *', 'uint', 'uint', 'uint'], pure=False)
+c_cbsz = air('air.get_size_command_buffer', 'uint', [CB], pure=False)
 c_dp = air('air.draw_primitives_render_command', 'void', [CB, 'uint', 'uint', 'uint', 'uint', 'uint', 'uint'], pure=False)
 c_rs = air('air.reset_render_command', 'void', [CB, 'uint'], pure=False)
 c_vb2 = air('air.set_vertex_buffer_render_command.p2i8', 'void', [CB, 'uint', 'const __attribute__((address_space(2))) void *', 'long', 'uint'], pure=False)
-c_fb2 = air('air.set_fragment_buffer_render_command.p2i8', 'void', [CB, 'uint', 'const __attribute__((address_space(2))) void *', 'long', 'uint'], pure=False)
-w(f'''struct [[clang::annotate("xt.resource:command_buffer:_command_buffer_t:1")]] command_buffer {{ {CB}__c; uint size() const; }};
+c_fb2 = air('air.set_fragment_buffer_render_command.p2i8', 'void', [CB, 'uint', 'const __attribute__((address_space(2))) void *', 'uint'], pure=False)
+w(f'''struct [[clang::annotate("xt.resource:command_buffer:_command_buffer_t:1")]] command_buffer {{ {CB}__c; uint size() const {{ return {c_cbsz}(__c); }} }};
 struct render_command {{
   {CB}__c; uint __i;
   render_command(command_buffer cb, uint i) : __c(cb.__c), __i(i) {{}}
   template <class T> void set_vertex_buffer(__global T *b, uint index) {{ {c_vb}(__c, __i, (__global void *)b, -1, index); }}
   template <class T> void set_vertex_buffer(const __global T *b, uint index) {{ {c_vb}(__c, __i, (__global void *)b, -1, index); }}
-  template <class T> void set_fragment_buffer(__global T *b, uint index) {{ {c_fb}(__c, __i, (__global void *)b, -1, index); }}
-  template <class T> void set_fragment_buffer(const __global T *b, uint index) {{ {c_fb}(__c, __i, (__global void *)b, -1, index); }}
+  template <class T> void set_fragment_buffer(__global T *b, uint index) {{ {c_fb}(__c, __i, (__global void *)b, index); }}
+  template <class T> void set_fragment_buffer(const __global T *b, uint index) {{ {c_fb}(__c, __i, (__global void *)b, index); }}
   template <class T> void set_vertex_buffer(const __attribute__((address_space(2))) T *b, uint index) {{ {c_vb2}(__c, __i, (const __attribute__((address_space(2))) void *)b, -1, index); }}
-  template <class T> void set_fragment_buffer(const __attribute__((address_space(2))) T *b, uint index) {{ {c_fb2}(__c, __i, (const __attribute__((address_space(2))) void *)b, -1, index); }}
+  template <class T> void set_fragment_buffer(const __attribute__((address_space(2))) T *b, uint index) {{ {c_fb2}(__c, __i, (const __attribute__((address_space(2))) void *)b, index); }}
   void draw_primitives(primitive_type t, uint vstart, uint vcount, uint icount, uint ibase) {{ {c_dp}(__c, __i, (uint)t, vstart, vcount, icount, ibase); }}
   void reset() {{ {c_rs}(__c, __i); }}
+  void draw_indexed_primitives(primitive_type t, uint count, const __global ushort *ib, uint icount, uint basev = 0, uint basei = 0) {{ {c_di16}(__c, __i, (uint)t, count, ib, icount, basev, basei); }}
+  void draw_indexed_primitives(primitive_type t, uint count, const __global uint *ib, uint icount, uint basev = 0, uint basei = 0) {{ {c_di32}(__c, __i, (uint)t, count, ib, icount, basev, basei); }}
 }};''')
 w('} // namespace metal')
+
+
+# ------------------------------------------------------------------------------------------------- ray tracing
+# Operations go through placeholders that xtmetal turns into air.<op>[_intersection_query].<tags> calls (the AIR
+# name depends on the tag set): __xt_rt_s<op>(tags, out*, args...) for struct results, __xt_rt_v<R, op>(tags,
+# args...) for direct ones. Keep RT_OPS in sync with xtmetal.cpp.
+w(r"""
+struct _instance_acceleration_structure_t;
+struct _primitive_acceleration_structure_t;
+struct _intersection_function_table_t;
+struct _intersection_query_t;
+struct _visible_function_table_t;
+template <unsigned OP, class R, class... A> __attribute__((noinline)) void __xt_rt_s(unsigned tags, R *out, A... a) {}
+template <class R, unsigned OP, class... A> __attribute__((noinline)) R __xt_rt_v(unsigned tags, A... a) { return R(); }
+template <class R, class... A> __attribute__((noinline)) R __xt_vft_call(__global void *fn, A... a) { return R(); }
+extern "C" __global void *__xt_vft_get(__global _visible_function_table_t *, uint) __asm("air.get_function_pointer_visible_function_table");
+namespace metal {
+namespace raytracing {
+struct instancing { static constexpr unsigned bit = 2; };
+template <int N> struct max_levels { static constexpr unsigned bit = 4; };
+struct triangle_data { static constexpr unsigned bit = 8; };
+struct curve_data { static constexpr unsigned bit = 16; };
+struct world_space_data { static constexpr unsigned bit = 32; };
+struct user_data { static constexpr unsigned bit = 64; };
+struct primitive_motion { static constexpr unsigned bit = 128; };
+struct instance_motion { static constexpr unsigned bit = 256; };
+struct extended_limits { static constexpr unsigned bit = 512; };
+template <class... T> constexpr unsigned __tags() { return (0u | ... | T::bit); }
+enum class intersection_type { none = 0, triangle = 1, bounding_box = 2, curve = 3 };
+enum class triangle_cull_mode { none = 0, front = 1, back = 2 };
+enum class geometry_cull_mode { none = 0, triangle = 1, bounding_box = 2, curve = 4 };
+enum class opacity_cull_mode { none = 0, opaque = 1, non_opaque = 2 };
+enum class forced_opacity { none = 0, opaque = 1, non_opaque = 2 };
+enum class geometry_type { none = 0, triangle = 1, bounding_box = 2, curve = 4, all = 7 };
+constexpr geometry_type operator|(geometry_type a, geometry_type b) { return (geometry_type)((unsigned)a | (unsigned)b); }
+constexpr geometry_cull_mode operator|(geometry_cull_mode a, geometry_cull_mode b) { return (geometry_cull_mode)((unsigned)a | (unsigned)b); }
+enum class curve_basis : uint { bspline = 0, catmull_rom = 1, linear = 2, bezier = 3, all = 0xFFFFFFFF };
+enum class curve_type : uint { round = 0, flat = 1, all = 0xFFFFFFFF };
+struct ray {
+  float3 origin; float3 direction; float min_distance; float max_distance;
+  ray() : origin(0.0f), direction(0.0f), min_distance(0.0f), max_distance(__builtin_inff()) {}
+  ray(float3 o, float3 d, float mn = 0.0f, float mx = __builtin_inff()) : origin(o), direction(d), min_distance(mn), max_distance(mx) {}
+};
+template <class... T> struct __has { static constexpr bool inst = (__tags<T...>() & 2) != 0; };
+template <class... T> struct [[clang::annotate("xt.resource:acceleration_structure:_acceleration_structure_t:1")]] acceleration_structure {
+  typedef typename __xt::conditional_t<__has<T...>::inst, __global _instance_acceleration_structure_t *, __global _primitive_acceleration_structure_t *> ptr_t;
+  ptr_t __a;
+};
+typedef acceleration_structure<instancing> instance_acceleration_structure;
+typedef acceleration_structure<> primitive_acceleration_structure;
+template <class... T> struct [[clang::annotate("xt.resource:intersection_function_table:_intersection_function_table_t:1")]] intersection_function_table {
+  __global _intersection_function_table_t *__t;
+  template <class B> void set_buffer(__global B *b, uint index);
+};
+template <int N> struct __empty {};
+struct __res_base { int __type; float distance; uint primitive_id; uint geometry_id; const __global void *primitive_data;
+  intersection_type __get_type() const { return (intersection_type)__type; }
+  void __set_type(intersection_type t) { __type = (int)t; }
+  __declspec(property(get = __get_type, put = __set_type)) intersection_type type; };
+struct __res_inst { uint instance_id; uint user_instance_id; };
+struct __res_tri { float2 triangle_barycentric_coord; bool triangle_front_facing; };
+struct __res_curve { float curve_parameter; };
+struct __res_ws { float4x3 object_to_world_transform; float4x3 world_to_object_transform; };
+template <class... T> struct intersection_result : __res_base,
+    __xt::conditional_t<(__tags<T...>() & 2) != 0, __res_inst, __empty<2>>,
+    __xt::conditional_t<(__tags<T...>() & 8) != 0, __res_tri, __empty<8>>,
+    __xt::conditional_t<(__tags<T...>() & 16) != 0, __res_curve, __empty<16>>,
+    __xt::conditional_t<(__tags<T...>() & 32) != 0, __res_ws, __empty<32>> {};
+struct __rt_cfg {
+  uint cull = 0, geomcull = 0, opcull = 0, forced = 0, geomtype = 3; int basis = -1, ctype = -1; uint cpc = 0; bool fb = false, any = false;
+  void set_triangle_cull_mode(triangle_cull_mode m) { cull = (uint)m; }
+  void set_geometry_cull_mode(geometry_cull_mode m) { geomcull = (uint)m; }
+  void set_opacity_cull_mode(opacity_cull_mode m) { opcull = (uint)m; }
+  void force_opacity(forced_opacity m) { forced = (uint)m; }
+  void assume_geometry_type(geometry_type t) { geomtype = (uint)t; }
+  void assume_curve_basis(curve_basis b) { basis = (int)b; }
+  void assume_curve_type(curve_type t) { ctype = (int)t; }
+  void assume_curve_control_point_count(uint n) { cpc = n; }
+  void accept_any_intersection(bool a) { any = a; }
+};
+typedef __rt_cfg intersection_params;
+template <class... T> struct intersector : __rt_cfg {
+  typedef intersection_result<T...> result_type;
+  static constexpr unsigned tags = __tags<T...>();
+  template <class AS, class FT, class P>
+  result_type __go(ray r, AS as, uint mask, float time, FT ft, P *payload, ulong psize) const {
+    result_type res;
+    if constexpr ((tags & 2) != 0) {
+      if constexpr ((tags & (128 | 256)) != 0)
+        __xt_rt_s<0>(tags, &res, r.origin, r.direction, r.min_distance, r.max_distance, as, mask, time, ft, (void *)payload, psize, 0u, cull, geomcull, opcull, forced, geomtype, basis, ctype, cpc, fb, any);
+      else
+        __xt_rt_s<0>(tags, &res, r.origin, r.direction, r.min_distance, r.max_distance, as, mask, ft, (void *)payload, psize, 0u, cull, geomcull, opcull, forced, geomtype, basis, ctype, cpc, fb, any);
+    } else {
+      if constexpr ((tags & 128) != 0)
+        __xt_rt_s<0>(tags, &res, r.origin, r.direction, r.min_distance, r.max_distance, as, time, ft, (void *)payload, psize, 0u, cull, geomcull, opcull, forced, geomtype, basis, ctype, cpc, any);
+      else
+        __xt_rt_s<0>(tags, &res, r.origin, r.direction, r.min_distance, r.max_distance, as, ft, (void *)payload, psize, 0u, cull, geomcull, opcull, forced, geomtype, basis, ctype, cpc, any);
+    }
+    return res;
+  }
+  __global _intersection_function_table_t *__nullft() const { return __xt_rt_v<__global _intersection_function_table_t *, 1>(0u); }
+  template <class... A> result_type intersect(ray r, acceleration_structure<A...> as) const { return __go(r, as.__a, 0xFFu, 0.0f, __nullft(), (char *)0, 0); }
+  template <class... A> result_type intersect(ray r, acceleration_structure<A...> as, uint mask) const { return __go(r, as.__a, mask, 0.0f, __nullft(), (char *)0, 0); }
+  template <class... A, unsigned TT = tags, typename __xt::enable_if<(TT & 384) != 0, int>::type = 0> result_type intersect(ray r, acceleration_structure<A...> as, float time) const { return __go(r, as.__a, 0xFFu, time, __nullft(), (char *)0, 0); }
+  template <class... A, unsigned TT = tags, typename __xt::enable_if<(TT & 384) != 0, int>::type = 0> result_type intersect(ray r, acceleration_structure<A...> as, uint mask, float time) const { return __go(r, as.__a, mask, time, __nullft(), (char *)0, 0); }
+  template <class... A, class... F> result_type intersect(ray r, acceleration_structure<A...> as, intersection_function_table<F...> ft) const { return __go(r, as.__a, 0xFFu, 0.0f, ft.__t, (char *)0, 0); }
+  template <class... A, class... F> result_type intersect(ray r, acceleration_structure<A...> as, uint mask, intersection_function_table<F...> ft) const { return __go(r, as.__a, mask, 0.0f, ft.__t, (char *)0, 0); }
+  template <class... A, class... F, unsigned TT = tags, typename __xt::enable_if<(TT & 384) != 0, int>::type = 0> result_type intersect(ray r, acceleration_structure<A...> as, float time, intersection_function_table<F...> ft) const { return __go(r, as.__a, 0xFFu, time, ft.__t, (char *)0, 0); }
+  template <class... A, class... F, unsigned TT = tags, typename __xt::enable_if<(TT & 384) != 0, int>::type = 0> result_type intersect(ray r, acceleration_structure<A...> as, uint mask, float time, intersection_function_table<F...> ft) const { return __go(r, as.__a, mask, time, ft.__t, (char *)0, 0); }
+  template <class... A, class... F, class P> result_type intersect(ray r, acceleration_structure<A...> as, intersection_function_table<F...> ft, P &p) const { return __go(r, as.__a, 0xFFu, 0.0f, ft.__t, &p, sizeof(P)); }
+  template <class... A, class... F, class P> result_type intersect(ray r, acceleration_structure<A...> as, uint mask, intersection_function_table<F...> ft, P &p) const { return __go(r, as.__a, mask, 0.0f, ft.__t, &p, sizeof(P)); }
+  template <class... A, class... F, class P, unsigned TT = tags, typename __xt::enable_if<(TT & 384) != 0, int>::type = 0> result_type intersect(ray r, acceleration_structure<A...> as, uint mask, float time, intersection_function_table<F...> ft, P &p) const { return __go(r, as.__a, mask, time, ft.__t, &p, sizeof(P)); }
+};
+""")
+RT_Q = ['allocate', 'deallocate', 'reset', 'next', 'abort', 'commit_triangle_intersection', 'commit_bounding_box_intersection',
+        'commit_curve_intersection', 'get_candidate_intersection_type', 'get_committed_intersection_type',
+        'get_candidate_ray_origin', 'get_candidate_ray_direction', 'get_candidate_primitive_id', 'get_committed_primitive_id',
+        'get_candidate_instance_id', 'get_committed_instance_id', 'get_candidate_user_instance_id', 'get_committed_user_instance_id',
+        'get_candidate_geometry_id', 'get_committed_geometry_id', 'get_candidate_triangle_barycentric_coord',
+        'get_committed_triangle_barycentric_coord', 'get_candidate_triangle_front_facing', 'get_committed_triangle_front_facing',
+        'get_committed_distance', 'get_candidate_triangle_distance', 'get_candidate_object_to_world_transform',
+        'get_committed_object_to_world_transform', 'get_candidate_world_to_object_transform', 'get_committed_world_to_object_transform',
+        'get_candidate_primitive_data', 'get_committed_primitive_data', 'get_ray_origin', 'get_ray_direction', 'get_ray_min_distance',
+        'get_ray_max_distance', 'get_candidate_curve_parameter', 'get_committed_curve_parameter']
+QRET = {'next': 'bool', 'get_candidate_intersection_type': 'int', 'get_committed_intersection_type': 'int',
+        'get_candidate_ray_origin': 'float3', 'get_candidate_ray_direction': 'float3', 'get_ray_origin': 'float3', 'get_ray_direction': 'float3',
+        'get_ray_min_distance': 'float', 'get_ray_max_distance': 'float', 'get_committed_distance': 'float', 'get_candidate_triangle_distance': 'float',
+        'get_candidate_triangle_barycentric_coord': 'float2', 'get_committed_triangle_barycentric_coord': 'float2',
+        'get_candidate_triangle_front_facing': 'bool', 'get_committed_triangle_front_facing': 'bool',
+        'get_candidate_primitive_data': 'const __global void *', 'get_committed_primitive_data': 'const __global void *',
+        'get_candidate_curve_parameter': 'float', 'get_committed_curve_parameter': 'float'}
+q = ['template <class... T> struct intersection_query {',
+     '  static constexpr unsigned tags = __tags<T...>();',
+     '  _intersection_query_t *__q;',
+     '  intersection_query() : __q(__xt_rt_v<_intersection_query_t *, 100>(tags)) {}',
+     '  ~intersection_query() { __xt_rt_v<void, 101>(tags, __q); }',
+     '  intersection_query(const intersection_query &) = delete;',
+     '  template <class... A> void reset(ray r, acceleration_structure<A...> as, uint mask, intersection_params p) {',
+     '    if constexpr ((tags & (128 | 256)) != 0) __xt_rt_v<void, 102>(tags, __q, r.origin, r.direction, r.min_distance, r.max_distance, as.__a, mask, 0.0f, 0u, p.cull, p.geomcull, p.opcull, p.forced, p.geomtype, p.basis, p.ctype, p.cpc, p.fb, p.any);',
+     '    else __xt_rt_v<void, 102>(tags, __q, r.origin, r.direction, r.min_distance, r.max_distance, as.__a, mask, 0u, p.cull, p.geomcull, p.opcull, p.forced, p.geomtype, p.basis, p.ctype, p.cpc, p.fb, p.any); }',
+     '  template <class... A> void reset(ray r, acceleration_structure<A...> as, intersection_params p) { reset(r, as, 0xFFu, p); }',
+     '  template <class... A> void reset(ray r, acceleration_structure<A...> as, uint mask = 0xFFu) { reset(r, as, mask, intersection_params()); }',
+     '  void commit_bounding_box_intersection(float d) { __xt_rt_v<void, 106>(tags, __q, d); }',
+     '  void commit_curve_intersection() { __xt_rt_v<void, 107>(tags, __q); }']
+for idx, op in enumerate(RT_Q):
+    if op in ('allocate', 'deallocate', 'reset', 'commit_bounding_box_intersection', 'commit_curve_intersection'):
+        continue
+    code = 100 + idx
+    if op.endswith('_transform'):
+        q.append(f'  float4x3 {op}() const {{ float4x3 m; __xt_rt_s<{code}>(tags, &m, __q); return m; }}')
+    elif op.endswith('intersection_type'):
+        q.append(f'  intersection_type {op}() const {{ return (intersection_type)__xt_rt_v<int, {code}>(tags, __q); }}')
+    else:
+        r = QRET.get(op, 'uint' if op.endswith('_id') else 'void')
+        ret = 'return ' if r != 'void' else ''
+        q.append(f'  {r} {op}() {"const " if r != "void" else ""}{{ {ret}__xt_rt_v<{r}, {code}>(tags, __q); }}')
+q.append('};')
+w('\n'.join(q))
+w(r"""
+template <class... T> inline bool is_null_instance_acceleration_structure(acceleration_structure<T...> a) { return __xt_rt_v<bool, 2>(0u, a.__a); }
+template <class... T> inline bool is_null_primitive_acceleration_structure(acceleration_structure<T...> a) { return __xt_rt_v<bool, 3>(0u, a.__a); }
+template <class... T> inline bool is_null_intersection_function_table(intersection_function_table<T...> t) { return __xt_rt_v<bool, 4>(0u, t.__t); }
+// Curve basis functions (MSL 3.1).
+template <class T, class S> inline T catmull_rom(S t, T p0, T p1, T p2, T p3) {
+  S t2 = t * t, t3 = t2 * t;
+  return (S)0.5 * (((S)2 * p1) + (-p0 + p2) * t + ((S)2 * p0 - (S)5 * p1 + (S)4 * p2 - p3) * t2 + (-p0 + (S)3 * p1 - (S)3 * p2 + p3) * t3);
+}
+template <class T, class S> inline T catmull_rom_derivative(S t, T p0, T p1, T p2, T p3) {
+  S t2 = t * t;
+  return (S)0.5 * ((-p0 + p2) + (S)2 * ((S)2 * p0 - (S)5 * p1 + (S)4 * p2 - p3) * t + (S)3 * (-p0 + (S)3 * p1 - (S)3 * p2 + p3) * t2);
+}
+template <class T, class S> inline T bezier(S t, T p0, T p1, T p2, T p3) {
+  S u = (S)1 - t; return u * u * u * p0 + (S)3 * u * u * t * p1 + (S)3 * u * t * t * p2 + t * t * t * p3;
+}
+template <class T, class S> inline T bezier_derivative(S t, T p0, T p1, T p2, T p3) {
+  S u = (S)1 - t; return (S)3 * u * u * (p1 - p0) + (S)6 * u * t * (p2 - p1) + (S)3 * t * t * (p3 - p2);
+}
+template <class T, class S> inline T bezier(S t, T p0, T p1, T p2) { S u = (S)1 - t; return u * u * p0 + (S)2 * u * t * p1 + t * t * p2; }
+template <class T, class S> inline T bezier_derivative(S t, T p0, T p1, T p2) { return (S)2 * ((S)1 - t) * (p1 - p0) + (S)2 * t * (p2 - p1); }
+template <class T, class S> inline T bspline(S t, T p0, T p1, T p2, T p3) {
+  S t2 = t * t, t3 = t2 * t, u = (S)1 - t;
+  return (u * u * u * p0 + ((S)3 * t3 - (S)6 * t2 + (S)4) * p1 + ((S)-3 * t3 + (S)3 * t2 + (S)3 * t + (S)1) * p2 + t3 * p3) / (S)6;
+}
+template <class T, class S> inline T bspline_derivative(S t, T p0, T p1, T p2, T p3) {
+  S t2 = t * t, u = (S)1 - t;
+  return ((S)-3 * u * u * p0 + ((S)9 * t2 - (S)12 * t) * p1 + ((S)-9 * t2 + (S)6 * t + (S)3) * p2 + (S)3 * t2 * p3) / (S)6;
+}
+template <class T, class S> inline T bspline(S t, T p0, T p1, T p2) { S u = (S)1 - t; return (S)0.5 * (u * u * p0 + ((S)-2 * t * t + (S)2 * t + (S)1) * p1 + t * t * p2); }
+template <class T, class S> inline T bspline_derivative(S t, T p0, T p1, T p2) { return (t - (S)1) * p0 + ((S)1 - (S)2 * t) * p1 + t * p2; }
+template <class T, class S> inline T linear(S t, T p0, T p1) { return p0 + (p1 - p0) * t; }
+template <class T, class S> inline T linear_derivative(S t, T p0, T p1) { return p1 - p0; }
+} // namespace raytracing
+template <class Sig> struct visible_function_table;
+typedef metal::packed_float3 MTLPackedFloat3;
+struct MTLPackedFloat4x3 { MTLPackedFloat3 columns[4];
+  MTLPackedFloat3 &operator[](int i) { return columns[i]; } const MTLPackedFloat3 &operator[](int i) const { return columns[i]; }
+  operator metal::float4x3() const { return metal::float4x3(float3(columns[0]), float3(columns[1]), float3(columns[2]), float3(columns[3])); } };
+enum MTLAccelerationStructureInstanceOptions : uint { MTLAccelerationStructureInstanceOptionNone = 0, MTLAccelerationStructureInstanceOptionDisableTriangleCulling = 1,
+  MTLAccelerationStructureInstanceOptionTriangleFrontFacingWindingCounterClockwise = 2, MTLAccelerationStructureInstanceOptionOpaque = 4,
+  MTLAccelerationStructureInstanceOptionNonOpaque = 8 };
+enum MTLMotionBorderMode : uint { MTLMotionBorderModeClamp = 0, MTLMotionBorderModeVanish = 1 };
+struct MTLAccelerationStructureInstanceDescriptor { MTLPackedFloat4x3 transformationMatrix; MTLAccelerationStructureInstanceOptions options;
+  uint mask; uint intersectionFunctionTableOffset; uint accelerationStructureIndex; };
+struct MTLAccelerationStructureUserIDInstanceDescriptor { MTLPackedFloat4x3 transformationMatrix; MTLAccelerationStructureInstanceOptions options;
+  uint mask; uint intersectionFunctionTableOffset; uint accelerationStructureIndex; uint userID; };
+struct MTLAccelerationStructureMotionInstanceDescriptor { MTLAccelerationStructureInstanceOptions options; uint mask;
+  uint intersectionFunctionTableOffset; uint accelerationStructureIndex; uint userID; uint motionTransformsStartIndex;
+  uint motionTransformsCount; MTLMotionBorderMode motionStartBorderMode; MTLMotionBorderMode motionEndBorderMode;
+  float motionStartTime; float motionEndTime; };
+template <class R, class... A> struct [[clang::annotate("xt.resource:visible_function_table:_visible_function_table_t:1")]] visible_function_table<R(A...)> {
+  __global _visible_function_table_t *__t;
+  struct __fn { __global void *p; R operator()(A... a) const { return __xt_vft_call<R>(p, a...); } };
+  __fn operator[](uint i) const { return __fn{__xt_vft_get(__t, i)}; }
+  uint size() const;
+};
+} // namespace metal
+""")
 
 # ------------------------------------------------------------------------------------------------- compute, sync, atomics, simd
 w(r'''
@@ -1006,6 +1943,108 @@ for nm, ret, arg in (('unorm4x8', 'uint', 'float4'), ('snorm4x8', 'uint', 'float
     w(f'inline {harg} unpack_{nm}_to_half(uint v) {{ return {c}(v); }}')
 
 w('} // namespace metal')
+
+# ------------------------------------------------------------------------------------------------- mesh shaders, imageblocks
+# set_vertex/set_primitive and implicit imageblock read/write need per-field AIR calls; xtmetal expands the
+# placeholders using the struct layouts it records from the entry point signatures.
+w(r"""
+struct _mesh_t;
+struct _mesh_grid_properties_t;
+template <class V> __attribute__((noinline)) void __xt_mesh_vertex(__attribute__((address_space(7))) _mesh_t *m, uint i, V *v) {}
+template <class P> __attribute__((noinline)) void __xt_mesh_prim(__attribute__((address_space(7))) _mesh_t *m, uint i, P *p) {}
+template <class T> __attribute__((noinline)) void __xt_ib_read(ushort2 c, int rate, ushort idx, T *out) {}
+template <class T> __attribute__((noinline)) void __xt_ib_write(ushort2 c, int rate, ushort idx, T *in) {}
+extern "C" ushort __xt_ib_num_colors(ushort2) __asm("air.get_imageblock_num_colors");
+extern "C" ushort __xt_ib_cov_mask(ushort2, ushort) __asm("air.get_color_coverage_mask");
+extern "C" void __xt_set_index_mesh(__attribute__((address_space(7))) _mesh_t *, uint, uchar) __asm("air.set_index_mesh");
+extern "C" void __xt_set_primitive_count_mesh(__attribute__((address_space(7))) _mesh_t *, uint) __asm("air.set_primitive_count_mesh");
+extern "C" void __xt_set_tg_mesh(__local _mesh_grid_properties_t *, uint3) __asm("air.set_threadgroups_per_grid_mesh_properties");
+extern "C" __generic char *__xt_imageblock_data(ushort2, int, short) __asm("air.imageblock_data");
+extern "C" ushort __xt_ib_width() __asm("air.get_imageblock_width");
+extern "C" ushort __xt_ib_height() __asm("air.get_imageblock_height");
+extern "C" ushort __xt_ib_samples() __asm("air.get_imageblock_samples");
+namespace metal {
+enum class topology { point = 0, line = 1, triangle = 2 };
+template <class V, class P, uint NV, uint NP, topology T> struct [[clang::annotate("xt.resource:mesh:_mesh_t:7")]] mesh {
+  __attribute__((address_space(7))) _mesh_t *__m;
+  void set_vertex(uint i, V v) { __xt_mesh_vertex(__m, i, &v); }
+  template <class Q = P> void set_primitive(uint i, Q p) { __xt_mesh_prim(__m, i, &p); }
+  void set_index(uint i, uchar v) { __xt_set_index_mesh(__m, i, v); }
+  void set_indices(uint i, uchar2 v) { set_index(i, v.x); set_index(i + 1, v.y); }
+  void set_indices(uint i, uchar4 v) { set_index(i, v.x); set_index(i + 1, v.y); set_index(i + 2, v.z); set_index(i + 3, v.w); }
+  void set_primitive_count(uint n) { __xt_set_primitive_count_mesh(__m, n); }
+  static constexpr uint max_vertices = NV, max_primitives = NP;
+};
+struct [[clang::annotate("xt.resource:mesh_grid_properties:_mesh_grid_properties_t:3")]] mesh_grid_properties {
+  __local _mesh_grid_properties_t *__p;
+  void set_threadgroups_per_grid(uint3 n) { __xt_set_tg_mesh(__p, n); }
+};
+struct _imageblock_base {};
+struct imageblock_layout_implicit {};
+enum class imageblock_data_rate { color = 1, sample = 2 };
+struct imageblock_layout_explicit {};
+template <class T, class L = imageblock_layout_explicit> struct [[clang::annotate("xt.resource:imageblock:_imageblock_base:0")]] imageblock {
+  _imageblock_base __b;
+  T read(ushort2 c) const { T r; __xt_ib_read(c, 0, 0, &r); return r; }
+  T read(ushort2 c, ushort i, imageblock_data_rate rate) const { T r; __xt_ib_read(c, (int)rate, i, &r); return r; }
+  void write(T v, ushort2 c) { __xt_ib_write(c, 0, 0, &v); }
+  void write(T v, ushort2 c, ushort i, imageblock_data_rate rate) { __xt_ib_write(c, (int)rate, i, &v); }
+  void write(T v, ushort2 c, ushort sample_mask) { __xt_ib_write(c, -1, sample_mask, &v); }
+  ushort get_num_colors(ushort2 c) const { return __xt_ib_num_colors(c); }
+  ushort get_color_coverage_mask(ushort2 c, ushort i) const { return __xt_ib_cov_mask(c, i); }
+  T *data(ushort2 c) { return (T *)__xt_imageblock_data(c, 0, 0); }
+  ushort get_width() const { return __xt_ib_width(); }
+  ushort get_height() const { return __xt_ib_height(); }
+  ushort get_num_samples() const { return __xt_ib_samples(); }
+};
+// Pixel storage types for imageblocks and raster order groups.
+template <class T, class S, int K> struct __pixel {
+  S __s;
+  __pixel() = default;
+  __pixel(T v) { __set(v); }
+  operator T() const { return __get(); }
+  __pixel &operator=(T v) { __set(v); return *this; }
+  void __set(T v);
+  T __get() const;
+};
+template <class T> using rgba8unorm = __pixel<T, uint, 0>;
+template <class T> using rgba8snorm = __pixel<T, uint, 1>;
+template <class T> using rg16unorm = __pixel<T, uint, 2>;
+template <class T> using rg16snorm = __pixel<T, uint, 3>;
+template <class T> using srgba8unorm = __pixel<T, uint, 4>;
+template <class T> using r8unorm = __pixel<T, uchar, 5>;
+template <class T> using rg8unorm = __pixel<T, ushort, 6>;
+template <class T> using r16unorm = __pixel<T, ushort, 7>;
+template <class T> using r16float = __pixel<T, half, 8>;
+template <class T> using rg16float = __pixel<T, uint, 9>;
+template <class T> using rgba16float = __pixel<T, ulong, 10>;
+template <class T, class S, int K> inline void __pixel<T, S, K>::__set(T v) {
+  if constexpr (K == 0) __s = pack_half_to_unorm4x8(__xt_make<half4>(v));
+  else if constexpr (K == 1) __s = pack_half_to_snorm4x8(__xt_make<half4>(v));
+  else if constexpr (K == 2) __s = pack_float_to_unorm2x16(__xt_make<float2>(v));
+  else if constexpr (K == 3) __s = pack_float_to_snorm2x16(__xt_make<float2>(v));
+  else if constexpr (K == 4) __s = pack_half_to_unorm4x8(__xt_make<half4>(v));
+  else if constexpr (K == 5) __s = (uchar)rint(saturate((float)__xt::get<float, 0>(v)) * 255.0f);
+  else if constexpr (K == 6) { float2 f = saturate(__xt_make<float2>(v)); __s = (ushort)((uint)rint(f.x * 255.0f) | ((uint)rint(f.y * 255.0f) << 8)); }
+  else if constexpr (K == 7) __s = (ushort)rint(saturate((float)__xt::get<float, 0>(v)) * 65535.0f);
+  else if constexpr (K == 8) __s = (half)__xt::get<float, 0>(v);
+  else if constexpr (K == 9) __s = as_type<uint>(__xt_make<half2>(v));
+  else if constexpr (K == 10) __s = as_type<ulong>(__xt_make<half4>(v));
+}
+template <class T, class S, int K> inline T __pixel<T, S, K>::__get() const {
+  if constexpr (K == 0 || K == 4) return __xt_make<T>(unpack_unorm4x8_to_half(__s));
+  else if constexpr (K == 1) return __xt_make<T>(unpack_snorm4x8_to_half(__s));
+  else if constexpr (K == 2) return __xt_make<T>(unpack_unorm2x16_to_float(__s));
+  else if constexpr (K == 3) return __xt_make<T>(unpack_snorm2x16_to_float(__s));
+  else if constexpr (K == 5) return __xt_make<T>((float)__s / 255.0f);
+  else if constexpr (K == 6) return __xt_make<T>(float2(__s & 255, __s >> 8) / 255.0f);
+  else if constexpr (K == 7) return __xt_make<T>((float)__s / 65535.0f);
+  else if constexpr (K == 8) return __xt_make<T>(__s);
+  else if constexpr (K == 9) return __xt_make<T>(as_type<half2>(__s));
+  else return __xt_make<T>(as_type<half4>(__s));
+}
+} // namespace metal
+""")
 
 # ------------------------------------------------------------------------------------------------- epilogue
 w('#pragma clang diagnostic pop')

@@ -10,6 +10,9 @@ for f in ours/*.metallib; do
   a=$($H info $r 2>&1 | sed 's/ constants=.*//'); b=$($H info $f 2>&1 | sed 's/ constants=.*//')
   if [ "$a" != "$b" ]; then diff=$((diff+1)); echo "LIST DIFF $id"; diff <(echo "$a") <(echo "$b") | head -4; continue; fi
   c=$($H check $f 2>&1 | tail -3)
-  case "$c" in *", 0 failures"*) same=$((same+1));; *) fail=$((fail+1)); echo "CHECK FAIL $id: $c" | head -3;; esac
+  case "$c" in *", 0 failures"*) same=$((same+1));; *)
+    cr=$($H check $r 2>&1 | tail -3)
+    if [ "$(echo "$c" | grep -o "PIPELINE [^:]*" | sort)" = "$(echo "$cr" | grep -o "PIPELINE [^:]*" | sort)" ]; then same=$((same+1)); echo "(same pipeline failures as Apple: $id)";
+    else fail=$((fail+1)); echo "CHECK FAIL $id: $c" | head -3; fi;; esac
 done
 echo "load-check: $same ok, $diff function-list differences, $fail pipeline failures, of $n"

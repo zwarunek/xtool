@@ -33,11 +33,12 @@ for s in SCALARS:
         VECTOR_TYPES.add(f'simd_{s}{n}')
 STD_ATTRS = {'maybe_unused', 'nodiscard', 'noreturn', 'deprecated', 'fallthrough', 'likely', 'unlikely',
              'carries_dependency', 'no_unique_address'}
-QUOTE_ARGS = {'user', 'depth', 'patch'}
+QUOTE_ARGS = {'user', 'depth', 'patch', 'intersection'}
 QUALIFIERS = {'vertex', 'fragment', 'kernel'}
 PREDICATE_NAMES = set()  # function constants (and constants derived from them) in the current file
 ADDRESS_SPACES = {'device': '__global', 'constant': '__constant', 'threadgroup': '__local', 'thread': '',
-                  'threadgroup_imageblock': '__local', 'object_data': '__global', 'ray_data': ''}
+                  'threadgroup_imageblock': '', 'object_data': '__attribute__((address_space(6)))',
+                  'ray_data': '__attribute__((address_space(5)))'}
 
 
 def tokenize(text):
@@ -52,8 +53,20 @@ def tokenize(text):
     return out
 
 
+FLOAT_LITERAL = re.compile(r"(?:[0-9][0-9']*\.[0-9']*|\.[0-9][0-9']*)(?:[eE][+-]?[0-9]+)?|[0-9][0-9']*[eE][+-]?[0-9]+")
+
+
+def float_literal_suffix(tok):
+    # Unsuffixed floating literals are float in MSL. clang's -cl-single-precision-constant cast is lost when a
+    # template is instantiated, so spell the suffix out.
+    kind, text = tok
+    if kind == 'num' and FLOAT_LITERAL.fullmatch(text):
+        return (kind, text + 'f')
+    return tok
+
+
 def rewrite(text, include_dir):
-    toks = tokenize(text)
+    toks = [float_literal_suffix(t) for t in tokenize(text)]
     vector_names = set(VECTOR_TYPES)
     # user typedefs of vector types: typedef float4 Color; using Color = float4;
     sig = [t for t in toks if t[0] not in ('ws', 'line')]
@@ -157,7 +170,11 @@ def rewrite(text, include_dir):
                 j += 1
             if j >= n:
                 raise RewriteError('unterminated [[ attribute')
-            out.append(rewrite_attrs(body, out))
+            a = rewrite_attrs(body, out)
+            if a and prev_sig() == 'template':
+                # explicit instantiations take GNU attributes (clang attaches them to the specialization)
+                a = '__attribute__((' + a[2:-2].replace('clang::annotate', 'annotate') + '))'
+            out.append(a)
             i = j + 1
             continue
         if kind == 'id':

@@ -134,10 +134,23 @@ def compile_one(opts, src, out):
                '-U__SPIR64__', '-U__OPENCL_VERSION__', '-U__OPENCL_C_VERSION__', '-U__ENDIAN_LITTLE__',
                '-U__IMAGE_SUPPORT__', '-Dread_write=__xt_kw_read_write', '-Dread_only=__xt_kw_read_only', '-Dwrite_only=__xt_kw_write_only', '-Dglobal=__xt_kw_global', '-Dlocal=__xt_kw_local', '-Dpipe=__xt_kw_pipe', '-Datomic_int=__xt_atomic_int', '-Datomic_uint=__xt_atomic_uint', '-Datomic_float=__xt_atomic_float', '-Datomic_bool=__xt_atomic_bool', '-Datomic_long=__xt_atomic_long', '-Datomic_ulong=__xt_atomic_ulong', '-Datomic_flag=__xt_atomic_flag', '-U__FAST_RELAXED_MATH__', '-U__linux__', '-U__linux', '-Ulinux', '-U__unix__',
                '-U__unix', '-Uunix', '-U__ELF__', '-U__gnu_linux__']
-        plat = {'ios': '__METAL_IOS__', 'macosx': '__METAL_MACOS__', 'macos': '__METAL_MACOS__', 'tvos': '__METAL_TVOS__',
-                'watchos': '__METAL_WATCHOS__', 'xros': '__METAL_XROS__'}.get(os_name)
-        if plat:
-            cmd.append(f'-D{plat}=1')
+        # Apple defines __METAL_IOS__/__METAL_MACOS__ only for the platform-specific -std=ios-metal*/macos-metal*.
+        std = opts.get('std') or ''
+        if std.startswith('-std=ios-metal'):
+            cmd.append('-D__METAL_IOS__=1')
+        elif std.startswith('-std=macos-metal'):
+            cmd.append('-D__METAL_MACOS__=1')
+        osmacro = {'ios': 'IOS', 'macosx': 'MACOS', 'macos': 'MACOS', 'tvos': 'TVOS', 'watchos': 'WATCHOS', 'xros': 'XROS'}.get(os_name)
+        if osmacro:
+            cmd.append(f'-D__XT_OS_{osmacro}__=1')
+        ver = major * 10000 + minor * 100
+        cmd.append(f'-D__ENVIRONMENT_OS_VERSION_MIN_REQUIRED__={ver}')
+        envver = {'ios': 'IPHONE_OS', 'macosx': 'MAC_OS_X', 'macos': 'MAC_OS_X', 'tvos': 'TV_OS', 'watchos': 'WATCH_OS', 'xros': 'XR_OS'}.get(os_name)
+        if envver:
+            cmd.append(f'-D__ENVIRONMENT_{envver}_VERSION_MIN_REQUIRED__={ver}')
+        if env == '-simulator':
+            cmd.append('-D__APPLE_EMBEDDED_SIMULATOR__=1')
+        cmd.append('-D__HAVE_COLOR_ARGUMENTS__=1')
         if fast:
             cmd.append('-D__FAST_MATH__=1')
         if env == '-simulator':

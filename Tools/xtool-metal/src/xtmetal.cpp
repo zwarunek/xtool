@@ -132,6 +132,7 @@ struct ValueType {     // the IR type of one flattened AIR value
   unsigned addrSpace = 0;
   unsigned arrayLen = 0; // for arrays of scalars/vectors (e.g. clip_distance)
   bool fromStruct = false; // IR type is the user function's struct element at this offset
+  bool wholeStruct = false; // IR type is the user function's whole by-value struct (or return struct)
 };
 
 struct FlatField {     // one AIR argument or return element carved out of a struct in memory
@@ -150,7 +151,7 @@ struct ArgDesc {
   std::string stitchStructBase;   // visible struct arguments: stitching trait name prefix
 };
 
-enum class EntryKind { Vertex, Fragment, Kernel, Visible, Mesh, Object };
+enum class EntryKind { Vertex, Fragment, Kernel, Visible, Mesh, Object, Intersection };
 
 struct EntryDesc {
   EntryKind kind;
@@ -164,7 +165,7 @@ struct EntryDesc {
   MD stitching;                    // visible functions: air.stitching_info (empty node if none)
   bool stitchable = false;
   std::vector<std::pair<std::string, ValueType>> stitchTypes; // trait helper functions to generate
-  std::vector<std::string> extraAttrs;
+  std::vector<MD> extraAttrs;  // trailing operands of the entry node (intersection tags, patch info)
 };
 
 struct FunctionConstant {
@@ -182,6 +183,9 @@ struct CollectResult {
   std::vector<std::string> predicates; // function constants used as [[function_constant(x)]] argument predicates
   std::vector<std::pair<std::string, std::string>> derived; // (global, name) constants computed from function constants
   std::vector<std::string> fcInits;  // functions that compute them
+  std::vector<std::pair<std::string, std::vector<ValueType>>> controlPointFns; // externally defined control point loaders
+  struct LayoutField { uint64_t offset; ValueType type; std::string role; int index; };
+  std::map<std::string, std::vector<LayoutField>> layouts; // "vertex:struct.X", "prim:struct.X", "ib:struct.X"
   std::vector<EntryDesc> entries;
   std::vector<FunctionConstant> constants;
   bool error = false;
@@ -382,6 +386,32 @@ public:
 
   // Resource classes in our metal namespace carry a static marker describing the AIR resource.
   struct ResourceInfo { std::string kind; std::string opaque; unsigned as = 1; std::string base; };
+  // Ray tracing tag types (template arguments of acceleration structures, tables, intersectors).
+  static const std::vector<std::pair<unsigned, std::string>> &rtTagNames() {
+    static const std::vector<std::pair<unsigned, std::string>> t = {
+        {2, "instancing"}, {4, "max_levels"}, {8, "triangle_data"}, {16, "curve_data"}, {32, "world_space_data"},
+        {64, "user_data"}, {128, "primitive_motion"}, {256, "instance_motion"}, {512, "extended_limits"}};
+    return t;
+  }
+  unsigned rtTags(ca::QualType T) {
+    unsigned bits = 0;
+    auto *args = templateArgs(T);
+    if (!args) return 0;
+    for (auto &A : args->asArray()) {
+      auto add = [&](ca::QualType Q) {
+        if (auto *R = Q.getCanonicalType()->getAsCXXRecordDecl())
+          for (auto &p : rtTagNames()) if (R->getName() == p.second) bits |= p.first;
+      };
+      if (A.getKind() == ca::TemplateArgument::Pack) { for (auto &P : A.pack_elements()) if (P.getKind() == ca::TemplateArgument::Type) add(P.getAsType()); }
+      else if (A.getKind() == ca::TemplateArgument::Type) add(A.getAsType());
+    }
+    return bits;
+  }
+  std::string rtTagList(unsigned bits) {
+    std::string s;
+    for (auto &p : rtTagNames()) if (bits & p.first) s += (s.empty() ? "" : ", ") + p.second;
+    return s;
+  }
   bool resourceInfo(ca::QualType T, ResourceInfo &ri) {
     auto *RD = T.getCanonicalType()->getAsCXXRecordDecl();
     if (!RD || !isNamespaceMetal(RD)) return false;
@@ -394,6 +424,11 @@ public:
       ri.opaque = parts[2].str();
       ri.as = std::stoi(parts[3].str());
       ri.base = RD->getName().str();
+      if (ri.kind == "acceleration_structure") {
+        bool inst = rtTags(T) & 2;
+        ri.kind = inst ? "instance_acceleration_structure" : "primitive_acceleration_structure";
+        ri.opaque = inst ? "_instance_acceleration_structure_t" : "_primitive_acceleration_structure_t";
+      }
       return true;
     }
     return false;
@@ -411,10 +446,33 @@ public:
       ResourceInfo ri;
       auto *args = templateArgs(T);
       if (resourceInfo(T, ri)) {
+        if (ri.kind == "instance_acceleration_structure" || ri.kind == "primitive_acceleration_structure")
+          return "acceleration_structure<" + rtTagList(rtTags(T)) + ">";
+        if (ri.kind == "intersection_function_table") return "intersection_function_table<" + rtTagList(rtTags(T)) + ">";
+        if (ri.kind == "mesh" && args && args->size() == 5) {
+          static const char *topo[] = {"point", "line", "triangle"};
+          int64_t t = args->get(4).getAsIntegral().getSExtValue();
+          return "mesh<" + mslName(args->get(0).getAsType()) + ", " + mslName(args->get(1).getAsType()) + ", " +
+                 std::to_string(args->get(2).getAsIntegral().getZExtValue()) + ", " + std::to_string(args->get(3).getAsIntegral().getZExtValue()) +
+                 ", " + (t >= 0 && t < 3 ? topo[t] : "triangle") + ">";
+        }
+        if (ri.kind == "imageblock" && args && args->size() == 2) {
+          auto *L = args->get(1).getAsType().getCanonicalType()->getAsRecordDecl();
+          bool impl = L && L->getName() == "imageblock_layout_implicit";
+          if (auto *TR = args->get(0).getAsType().getCanonicalType()->getAsRecordDecl())
+            for (auto *F : TR->fields()) if (findAttr(airAttrs(F, Ctx), "color")) impl = true;
+          return "imageblock<" + mslName(args->get(0).getAsType()) + ", " + (impl ? "layout_implicit" : "layout_explicit") + ">";
+        }
         if (ri.kind == "texture" && args && args->size() >= 2)
           return ri.base + "<" + mslName(args->get(0).getAsType()) + ", " +
                  accessName(args->get(1).getAsIntegral().getSExtValue()) + ">";
         return ri.base;
+      }
+      if (isNamespaceMetal(RD) && args && RD->getName() == "__pixel" && args->size() == 3) {
+        static const char *names[] = {"rgba8unorm", "rgba8snorm", "rg16unorm", "rg16snorm", "srgba8unorm", "r8unorm", "rg8unorm",
+                                      "r16unorm", "r16float", "rg16float", "rgba16float"};
+        int64_t k = args->get(2).getAsIntegral().getSExtValue();
+        return std::string(k >= 0 && k < 11 ? names[k] : "pixel") + "<" + mslName(args->get(0).getAsType()) + ">";
       }
       if (isNamespaceMetal(RD) && args) {
         StringRef n = RD->getName();
@@ -483,6 +541,11 @@ public:
       if (FRD && !special) n.add("air.struct_type_info").add(structInfo(FRD, argBuffer && isArgumentBufferStruct(FRD)));
       uint64_t sz = ET->isPointerType() ? 8 : sizeOf(ET);
       n.addi(off).addi(sz).addi(count).add(mslName(ET)).add(F->getName().str());
+      {
+        auto fa = airAttrs(F, Ctx);
+        if (auto *c = findAttr(fa, "color")) n.add("air.render_target").addi(c->ints.empty() ? 0 : c->ints[0]);
+        if (auto *r = findAttr(fa, "raster_order_group")) n.add("air.raster_order_group").addi(r->ints.empty() ? 0 : r->ints[0]);
+      }
       if (argBuffer) {
         auto attrs = airAttrs(F, Ctx);
         auto *id = findAttr(attrs, "id");
@@ -636,10 +699,42 @@ public:
       auto attrs = airAttrs(F, Ctx);
       ca::QualType FT = F->getType();
       if (auto *NRD = FT.getCanonicalType()->getAsRecordDecl()) {
+        if (findAttr(attrs, "imageblock_data")) {
+          FlatField ib; ib.offset = off; ib.type.fromStruct = true;
+          ib.md = MD::node({MD::str("air.imageblock_data"), MD::str("air.imageblock_data_size"), MD::i32(sizeOf(FT)),
+                            MD::str("air.struct_type_info"), structInfo(NRD, false), MD::str("air.arg_type_align_size"), MD::i32(alignOf(FT)),
+                            MD::str("air.arg_type_name"), MD::str(mslName(FT)), MD::str("air.arg_name"), MD::str(F->getName().str())});
+          out.push_back(ib);
+          continue;
+        }
         if (!templateArgs(FT)) { flattenStruct(NRD, off, kind, isInput, out, F->getLocation()); continue; }
       }
       FlatField ff;
       ff.offset = off;
+      ResourceInfo pri;
+      if (resourceInfo(FT, pri) && pri.kind == "patch_control_point") {
+        // AIR passes a control point handle; attributes are read through "<CP>.MTL_CONTROL_POINT_FN".
+        ca::QualType CPT = templateArgs(FT)->get(0).getAsType();
+        auto *CRD = CPT.getCanonicalType()->getAsRecordDecl();
+        std::string cpn = CRD ? CRD->getName().str() : "CP";
+        std::string fnName = "_Z" + std::to_string(cpn.size()) + cpn + ".MTL_CONTROL_POINT_FN";
+        ff.type.isPtr = true; ff.type.opaque = "struct._patch_control_point_t"; ff.type.addrSpace = 0;
+        MD m = MD::node({MD::str("air.patch_control_point_input"),
+                         MD::node({MD::str("air.patch_control_point_function"), MD::func(fnName)})});
+        std::vector<ValueType> cpTypes;
+        if (CRD)
+          for (auto *CF : CRD->fields()) {
+            auto ca2 = airAttrs(CF, Ctx);
+            auto *at = findAttr(ca2, "attribute");
+            ValueType vt; valueType(CF->getType(), vt); cpTypes.push_back(vt);
+            m.add(MD::node({MD::str("air.location_index"), MD::i32(at && !at->ints.empty() ? at->ints[0] : 0), MD::i32(1),
+                            MD::str("air.arg_type_name"), MD::str(mslName(CF->getType())), MD::str("air.arg_name"), MD::str(CF->getName().str())}));
+          }
+        ff.md = m;
+        R.controlPointFns.push_back({fnName, cpTypes});
+        out.push_back(ff);
+        continue;
+      }
       if (!valueType(FT, ff.type)) { error(F->getLocation(), "unsupported field type in stage_in/output struct"); continue; }
       std::string tn = mslName(FT), fn = F->getName().str();
       MD m = MD::node();
@@ -663,6 +758,9 @@ public:
         else if (findAttr(attrs, "viewport_array_index")) m.add("air.viewport_array_index");
         else if (findAttr(attrs, "point_size") || findAttr(attrs, "clip_distance")) continue;
         else { m.add("air.fragment_input").add(varyingName(attrs, F)); interpolation(attrs, FT, m, false); }
+      } else if (kind == EntryKind::Intersection && !isInput) {
+        if (attrs.empty()) { error(F->getLocation(), "intersection function result field '" + fn + "' needs an attribute"); continue; }
+        m.add("air." + attrs[0].name);
       } else if (kind == EntryKind::Fragment && !isInput) {
         if (auto *c = findAttr(attrs, "color")) {
           auto *ix = findAttr(attrs, "index");
@@ -680,6 +778,54 @@ public:
       out.push_back(ff);
     }
     (void)loc;
+  }
+
+  std::string irStructName(const ca::RecordDecl *RD) { return "struct." + recordName(RD); }
+
+  // Mesh vertex/primitive struct: metadata list and layout for the set_vertex/set_primitive expansion.
+  MD meshFields(const ca::RecordDecl *RD, bool vertex) {
+    MD list = MD::node();
+    if (!RD) return list;
+    std::vector<CollectResult::LayoutField> lay;
+    const ca::ASTRecordLayout &L = Ctx.getASTRecordLayout(RD);
+    int idx = 0, data = 0;
+    for (auto *F : RD->fields()) {
+      uint64_t off = L.getFieldOffset(idx++) / 8;
+      auto attrs = airAttrs(F, Ctx);
+      CollectResult::LayoutField lf{off, {}, "data", -1};
+      valueType(F->getType(), lf.type);
+      MD m = MD::node();
+      static const char *builtins[] = {"position", "point_size", "clip_distance", "primitive_id", "render_target_array_index",
+                                       "viewport_array_index", "primitive_culled"};
+      const char *b = nullptr;
+      for (auto *x : builtins) if (findAttr(attrs, x)) b = x;
+      if (b) { m.add(std::string("air.") + b); lf.role = b; }
+      else {
+        m.add(vertex ? "air.mesh_vertex_data" : "air.mesh_primitive_data").addi(data).add(varyingName(attrs, F));
+        lf.index = data++;
+      }
+      m.add("air.arg_type_name").add(mslName(F->getType())).add("air.arg_name").add(F->getName().str());
+      list.add(m);
+      lay.push_back(lf);
+    }
+    R.layouts[(vertex ? "vertex:" : "prim:") + irStructName(RD)] = lay;
+    return list;
+  }
+
+  void recordImageblockLayout(const ca::RecordDecl *RD) {
+    if (!RD) return;
+    std::vector<CollectResult::LayoutField> lay;
+    const ca::ASTRecordLayout &L = Ctx.getASTRecordLayout(RD);
+    int idx = 0;
+    for (auto *F : RD->fields()) {
+      uint64_t off = L.getFieldOffset(idx++) / 8;
+      auto attrs = airAttrs(F, Ctx);
+      auto *c = findAttr(attrs, "color");
+      CollectResult::LayoutField lf{off, {}, "color", c && !c->ints.empty() ? (int)c->ints[0] : idx - 1};
+      valueType(F->getType(), lf.type);
+      lay.push_back(lf);
+    }
+    R.layouts["ib:" + irStructName(RD)] = lay;
   }
 
   // [[function_constant(name)]] on an argument: "air.function_constant" plus the predicate global, after
@@ -711,13 +857,57 @@ public:
     int airIndex = 0;
     MD stitchArgs = MD::node();
 
+    // Arguments without an explicit [[buffer/texture/sampler/threadgroup(n)]] take the lowest index
+    // not used explicitly in their binding space, in argument order (matches Apple's compiler).
+    std::map<const ca::ParmVarDecl *, AttrInfo> implicitLoc;
+    if (kind != EntryKind::Visible) {
+      static const char *spaces[] = {"buffer", "texture", "sampler", "threadgroup"};
+      std::map<std::string, std::set<int64_t>> used;
+      std::vector<std::pair<const ca::ParmVarDecl *, std::string>> pending;
+      for (auto *P : FD->parameters()) {
+        auto attrs = airAttrs(P, Ctx);
+        bool hasLoc = false;
+        for (auto *sp : spaces)
+          if (auto *a = findAttr(attrs, sp)) { hasLoc = true; if (!a->ints.empty()) used[sp].insert(a->ints[0]); }
+        if (hasLoc || !attrs.empty()) continue;
+        ca::QualType CT = P->getType().getCanonicalType();
+        ResourceInfo ri;
+        std::string space;
+        if (resourceInfo(CT, ri)) {
+          if (ri.kind == "texture" || ri.kind == "sampler") space = ri.kind;
+          else if (ri.kind == "instance_acceleration_structure" || ri.kind == "primitive_acceleration_structure" ||
+                   ri.kind == "intersection_function_table" || ri.kind == "visible_function_table") space = "buffer";
+        } else if (CT->isPointerType() || CT->isReferenceType()) {
+          space = airAS(CT->getPointeeType().getAddressSpace()) == 3 ? "threadgroup" : "buffer";
+        }
+        if (!space.empty()) pending.push_back({P, space});
+      }
+      for (auto &[P, space] : pending) {
+        int64_t i = 0;
+        while (used[space].count(i)) ++i;
+        used[space].insert(i);
+        implicitLoc[P] = AttrInfo{space, {i}, {}};
+      }
+    }
+
     for (auto *P : FD->parameters()) {
       auto attrs = airAttrs(P, Ctx);
+      if (auto it = implicitLoc.find(P); it != implicitLoc.end()) attrs.push_back(it->second);
       ca::QualType T = P->getType();
       std::string pname = P->getName().str();
       ArgDesc A;
       ResourceInfo ri;
       ca::QualType CT = T.getCanonicalType();
+      if (findAttr(attrs, "imageblock_data") && CT->getAsRecordDecl()) {
+        auto *IRD = CT->getAsRecordDecl();
+        A.kind = ArgKind::Memory; A.size = sizeOf(CT); A.align = alignOf(CT);
+        FlatField ff; ff.offset = 0; ff.type.wholeStruct = true;
+        MD m = MD::node({MD::i32(airIndex++), MD::str("air.imageblock_data"), MD::str("air.imageblock_data_size"), MD::i32(sizeOf(CT)),
+                         MD::str("air.struct_type_info"), structInfo(IRD, false), MD::str("air.arg_type_align_size"), MD::i32(alignOf(CT)),
+                         MD::str("air.arg_type_name"), MD::str(mslName(CT)), MD::str("air.arg_name"), MD::str(pname)});
+        ff.md = m; A.fields.push_back(ff); E.args.push_back(A);
+        continue;
+      }
       bool fbStruct = kind == EntryKind::Fragment && attrs.empty() && CT->getAsRecordDecl() && !templateArgs(CT) &&
                       !resourceInfo(CT, ri) && !CT->getAs<ca::ExtVectorType>();
       if (findAttr(attrs, "stage_in") || fbStruct) {
@@ -777,14 +967,64 @@ public:
       if (resourceInfo(CT, ri)) {
         A.kind = ArgKind::Memory; A.isResource = true; A.size = sizeOf(CT); A.align = alignOf(CT);
         ff.type.isPtr = true; ff.type.opaque = "struct." + ri.opaque; ff.type.addrSpace = ri.as;
-        const char *which = ri.kind == "texture" ? "texture" : ri.kind == "sampler" ? "sampler" : nullptr;
-        auto *loc = which ? findAttr(attrs, which) : nullptr;
+        if (ri.kind == "imageblock") {
+          // passed by value as metal::_imageblock_base
+          ff.type = ValueType(); ff.type.fromStruct = true;
+          auto *args = templateArgs(CT);
+          ca::QualType IT = args->get(0).getAsType();
+          auto *IRD = IT.getCanonicalType()->getAsRecordDecl();
+          bool impl = mslName(CT).find("layout_implicit") != std::string::npos;
+          m.add("air.imageblock").add(impl ? "implicit" : "explicit");
+          (void)0;
+          if (!impl) m.add("air.imageblock_data_size").addi(sizeOf(IT));
+          if (IRD) m.add("air.struct_type_info").add(structInfo(IRD, false));
+          m.add("air.arg_type_align_size").addi(alignOf(IT)).add("air.arg_type_name").add(mslName(CT)).add("air.arg_name").add(pname);
+          if (impl) recordImageblockLayout(IRD);
+          ff.md = m; A.fields.push_back(ff); E.args.push_back(A);
+          continue;
+        }
+        if (ri.kind == "mesh") {
+          auto *args = templateArgs(CT);
+          static const char *topo[] = {"air.point", "air.line", "air.triangle"};
+          int64_t t = args->get(4).getAsIntegral().getSExtValue();
+          MD info = MD::node({MD::str("air.mesh_type_info"),
+                              meshFields(args->get(0).getAsType().getCanonicalType()->getAsRecordDecl(), true),
+                              meshFields(args->get(1).getAsType().getCanonicalType()->getAsRecordDecl(), false),
+                              MD::i32(args->get(2).getAsIntegral().getZExtValue()), MD::i32(args->get(3).getAsIntegral().getZExtValue()),
+                              MD::str(t >= 0 && t < 3 ? topo[t] : "air.triangle")});
+          m.add("air.mesh").add(info).add("air.arg_type_name").add(mslName(CT)).add("air.arg_name").add(pname);
+          ff.md = m; A.fields.push_back(ff); E.args.push_back(A);
+          continue;
+        }
+        if (ri.kind == "mesh_grid_properties") {
+          m.add("air.mesh_grid_properties").add("air.arg_type_name").add("mesh_grid_properties").add("air.arg_name").add(pname);
+          ff.md = m; A.fields.push_back(ff); E.args.push_back(A);
+          continue;
+        }
+        const AttrInfo *loc = findAttr(attrs, "texture");
+        if (!loc) loc = findAttr(attrs, "sampler");
+        if (!loc) loc = findAttr(attrs, "buffer");
         m.add("air." + ri.kind).add("air.location_index").addi(loc && !loc->ints.empty() ? loc->ints[0] : 0).addi(1);
+        if (ri.kind == "instance_acceleration_structure" || ri.kind == "primitive_acceleration_structure" || ri.kind == "visible_function_table")
+          m.add("air.read");
+        if (ri.kind == "intersection_function_table") m.add("air.read_write");
         if (ri.kind == "texture") {
           auto *args = templateArgs(CT);
           m.add("air." + accessName(args && args->size() >= 2 ? args->get(1).getAsIntegral().getSExtValue() : 0));
         }
         m.add("air.arg_type_name").add(mslName(CT)).add("air.arg_name").add(pname);
+      } else if ((CT->isPointerType() || CT->isReferenceType()) && findAttr(attrs, "payload")) {
+        ca::QualType Pt = CT->getPointeeType();
+        m.add("air.payload");
+        if (auto *PRD = Pt.getCanonicalType()->getAsRecordDecl(); PRD && !templateArgs(Pt)) m.add("air.struct_type_info").add(structInfo(PRD, false));
+        m.add("air.arg_type_size").addi(sizeOf(Pt)).add("air.arg_type_align_size").addi(alignOf(Pt));
+        m.add("air.arg_type_name").add(mslName(Pt)).add("air.arg_name").add(pname);
+        ff.type.isPtr = true;
+      } else if ((CT->isPointerType() || CT->isReferenceType()) && !attrs.empty() && !findAttr(attrs, "buffer") &&
+                 !findAttr(attrs, "threadgroup")) {
+        ca::QualType Pt = CT->getPointeeType();
+        m.add("air." + attrs[0].name).add("air.arg_type_name").add(Pt->isVoidType() ? "void" : mslName(Pt)).add("air.arg_name").add(pname);
+        ff.type.isPtr = true;
       } else if (CT->isPointerType() || CT->isReferenceType()) {
         ca::QualType Pt = CT->getPointeeType();
         bool isRef = CT->isReferenceType();
@@ -801,7 +1041,7 @@ public:
         if (gAirMinor >= 6 && !indirect) m.add("air.address_space").addi(airAS(Pt.getAddressSpace()));
         bool opaque = PRD && PRD->hasAttrs() && [&] { for (auto *A : PRD->specific_attrs<ca::AnnotateAttr>()) if (A->getAnnotation() == "xt.opaque_buffer") return true; return false; }();
         if (PRD && !opaque && (!templateArgs(Pt) || mslName(Pt) == "metal::_atomic")) m.add("air.struct_type_info").add(structInfo(PRD, indirect));
-        if (!opaque) m.add("air.arg_type_size").addi(sizeOf(Pt)).add("air.arg_type_align_size").addi(alignOf(Pt));
+        if (!opaque && !Pt->isVoidType()) m.add("air.arg_type_size").addi(sizeOf(Pt)).add("air.arg_type_align_size").addi(alignOf(Pt));
         m.add("air.arg_type_name").add(mslName(Pt)).add("air.arg_name").add(pname);
         ff.type.isPtr = true; // passed through with the user function's IR type
       } else {
@@ -829,7 +1069,10 @@ public:
       E.retAlign = alignOf(RT);
       if (kind == EntryKind::Visible) {
         FlatField ff;
-        if (!valueType(RT, ff.type)) error(FD->getLocation(), "unsupported visible function return type");
+        if (!valueType(RT, ff.type)) {
+          if (RT->getAsRecordDecl()) ff.type.wholeStruct = true;
+          else error(FD->getLocation(), "unsupported visible function return type");
+        }
         ff.md = MD::node({MD::str("air.visible_output"), MD::str("air.arg_type_name"), MD::str(mslName(RT))});
         E.rets.push_back(ff);
       } else if (auto *RD = RT->getAsRecordDecl(); RD && !templateArgs(RT)) {
@@ -840,6 +1083,7 @@ public:
         if (!valueType(RT, ff.type)) error(FD->getLocation(), "unsupported entry point return type");
         if (kind == EntryKind::Fragment) ff.md = MD::node({MD::str("air.render_target"), MD::i32(0), MD::i32(0),
                                                           MD::str("air.arg_type_name"), MD::str(mslName(RT))});
+        else if (kind == EntryKind::Intersection) ff.md = MD::node({MD::str("air.accept_intersection"), MD::str("air.arg_type_name"), MD::str(mslName(RT))});
         else if (kind == EntryKind::Vertex) { ff.md = MD::node({MD::str("air.position"), MD::str("air.arg_type_name"), MD::str(mslName(RT))}); E.retPacked = true; }
         E.rets.push_back(ff);
       }
@@ -866,8 +1110,32 @@ public:
       else if (a.name == "visible" || a.name == "stitchable") k = EntryKind::Visible;
       else if (a.name == "mesh") k = EntryKind::Mesh;
       else if (a.name == "object") k = EntryKind::Object;
+      else if (a.name == "intersection") k = EntryKind::Intersection;
       else continue;
       buildEntry(FD, k, attrs);
+      if (auto *mt = findAttr(attrs, "max_total_threads_per_threadgroup"); mt && !mt->ints.empty() && !R.entries.empty())
+        R.entries.back().extraAttrs.push_back(MD::node({MD::str("air.max_work_group_size"), MD::i32(mt->ints[0])}));
+      if (auto *mg = findAttr(attrs, "max_total_threadgroups_per_mesh_grid"); mg && !mg->ints.empty() && !R.entries.empty())
+        R.entries.back().extraAttrs.push_back(MD::node({MD::str("air.max_mesh_work_groups"), MD::i32(mg->ints[0])}));
+      if (auto *pa = findAttr(attrs, "patch"); pa && !R.entries.empty()) {
+        auto &E = R.entries.back();
+        int64_t n = pa->strs.size() > 1 ? std::atoll(pa->strs[1].c_str()) : (pa->ints.empty() ? 0 : pa->ints[0]);
+        MD p = MD::node({MD::str("air.patch"), MD::str(pa->strs.empty() ? "triangle" : pa->strs[0])});
+        if (n) { p.add("air.patch_control_point"); p.addi(n); }
+        E.extraAttrs.push_back(p);
+      }
+      if (k == EntryKind::Intersection && !R.entries.empty()) {
+        auto &E = R.entries.back();
+        unsigned bits = 0;
+        std::string geom;
+        for (auto &t : a.strs) {
+          bool isTag = false;
+          for (auto &p : rtTagNames()) if (p.second == t) { bits |= p.first; isTag = true; }
+          if (!isTag) geom = t;
+        }
+        if (!geom.empty()) E.extraAttrs.push_back(MD::str("air." + geom));
+        for (auto &p : rtTagNames()) if (bits & p.first) E.extraAttrs.push_back(MD::str("air." + p.second));
+      }
       return;
     }
   }
@@ -1037,12 +1305,14 @@ struct Lowering {
     for (unsigned i = 0; i < E.args.size(); ++i) {
       auto &A = E.args[i];
       for (unsigned f = 0; f < A.fields.size(); ++f) {
-        if (!A.fields[f].type.fromStruct) continue;
+        if (!A.fields[f].type.fromStruct && !A.fields[f].type.wholeStruct) continue;
         Type *PT = U->getFunctionType()->getParamType(uarg + i);
         StructType *ST = nullptr;
         if (U->hasParamAttribute(uarg + i, Attribute::ByVal)) ST = dyn_cast<StructType>(U->getParamByValType(uarg + i));
         else if (PT->isPointerTy()) ST = dyn_cast<StructType>(PT->getNonOpaquePointerElementType());
+        else ST = dyn_cast<StructType>(PT);
         if (!ST) die("entry point '" + E.name + "': cannot find the struct type of argument " + Twine(i));
+        if (A.fields[f].type.wholeStruct) { structFieldTy[{i, f}] = ST; continue; }
         const StructLayout *SL = M.getDataLayout().getStructLayout(ST);
         unsigned idx = SL->getElementContainingOffset(A.fields[f].offset);
         if (SL->getElementOffset(idx) != A.fields[f].offset) die("entry point '" + E.name + "': struct field layout mismatch");
@@ -1076,7 +1346,21 @@ struct Lowering {
     }
     Type *retTy = Type::getVoidTy(C);
     std::vector<Type *> retElems;
-    for (auto &r : E.rets) retElems.push_back(irType(M, r.type));
+    Type *RS = sret ? U->getParamStructRetType(0) : U->getReturnType();
+    std::vector<Type *> retMem;
+    for (auto &r : E.rets) {
+      Type *T = nullptr;
+      if (r.type.wholeStruct) T = RS;
+      else if (r.type.fromStruct) {
+        auto *SRS = dyn_cast<StructType>(RS);
+        if (!SRS) die("entry point '" + E.name + "': cannot find the return struct type");
+        const StructLayout *SL = M.getDataLayout().getStructLayout(SRS);
+        unsigned idx = SL->getElementContainingOffset(r.offset);
+        T = SRS->getElementType(idx);
+      }
+      retElems.push_back(T ? T : irType(M, r.type));
+      retMem.push_back(T ? T : memType(M, r.type));
+    }
     if (!E.returnsVoid) {
       if (E.retPacked) retTy = StructType::get(C, retElems, true);
       else retTy = retElems[0];
@@ -1093,11 +1377,11 @@ struct Lowering {
 
     // Build the user call arguments.
     std::vector<Value *> callArgs;
-    Value *retMem = nullptr;
+    Value *retMemPtr = nullptr;
     if (sret) {
       Type *ST = U->getParamStructRetType(0);
-      retMem = allocaBytes(B, F, std::max<uint64_t>(E.retSize, M.getDataLayout().getTypeAllocSize(ST)), E.retAlign);
-      callArgs.push_back(B.CreateBitCast(retMem, U->getFunctionType()->getParamType(0)));
+      retMemPtr = allocaBytes(B, F, std::max<uint64_t>(E.retSize, M.getDataLayout().getTypeAllocSize(ST)), E.retAlign);
+      callArgs.push_back(B.CreateBitCast(retMemPtr, U->getFunctionType()->getParamType(0)));
     }
     unsigned airArg = 0;
     for (unsigned i = 0; i < E.args.size(); ++i) {
@@ -1140,18 +1424,18 @@ struct Lowering {
     } else {
       if (!sret) {
         Type *UR = U->getReturnType();
-        retMem = allocaBytes(B, F, std::max<uint64_t>(E.retSize, M.getDataLayout().getTypeAllocSize(UR)), std::max<uint64_t>(E.retAlign, 16));
-        B.CreateStore(CI, B.CreateBitCast(retMem, PointerType::get(UR, 0)));
+        retMemPtr = allocaBytes(B, F, std::max<uint64_t>(E.retSize, M.getDataLayout().getTypeAllocSize(UR)), std::max<uint64_t>(E.retAlign, 16));
+        B.CreateStore(CI, B.CreateBitCast(retMemPtr, PointerType::get(UR, 0)));
       }
       if (E.retPacked) {
         Value *agg = UndefValue::get(retTy);
         for (unsigned r = 0; r < E.rets.size(); ++r) {
-          Value *v = loadAt(B, retMem, E.rets[r].offset, memType(M, E.rets[r].type), retElems[r]);
+          Value *v = loadAt(B, retMemPtr, E.rets[r].offset, retMem[r], retElems[r]);
           agg = B.CreateInsertValue(agg, v, r);
         }
         B.CreateRet(agg);
       } else {
-        B.CreateRet(loadAt(B, retMem, 0, memType(M, E.rets[0].type), retTy));
+        B.CreateRet(loadAt(B, retMemPtr, 0, retMem[0], retTy));
       }
     }
     return F;
@@ -1596,7 +1880,283 @@ static void fixGlobalInitializers(Module &M) {
             if (!F->hasSection()) F->setSection("air.static_init");
 }
 
+
+// Ray tracing placeholders from the stdlib: __xt_rt_s<OP>(tags, out*, args...) / __xt_rt_v<R, OP>(tags, args...)
+// become air.<op>[...].<tags> calls; the AIR name encodes the tag set. Keep RT_Q in sync with gen_stdlib.py.
+static const char *kRTQ[] = {"allocate", "deallocate", "reset", "next", "abort", "commit_triangle_intersection",
+    "commit_bounding_box_intersection", "commit_curve_intersection", "get_candidate_intersection_type",
+    "get_committed_intersection_type", "get_candidate_ray_origin", "get_candidate_ray_direction", "get_candidate_primitive_id",
+    "get_committed_primitive_id", "get_candidate_instance_id", "get_committed_instance_id", "get_candidate_user_instance_id",
+    "get_committed_user_instance_id", "get_candidate_geometry_id", "get_committed_geometry_id",
+    "get_candidate_triangle_barycentric_coord", "get_committed_triangle_barycentric_coord", "get_candidate_triangle_front_facing",
+    "get_committed_triangle_front_facing", "get_committed_distance", "get_candidate_triangle_distance",
+    "get_candidate_object_to_world_transform", "get_committed_object_to_world_transform", "get_candidate_world_to_object_transform",
+    "get_committed_world_to_object_transform", "get_candidate_primitive_data", "get_committed_primitive_data", "get_ray_origin",
+    "get_ray_direction", "get_ray_min_distance", "get_ray_max_distance", "get_candidate_curve_parameter",
+    "get_committed_curve_parameter"};
+
+static void flattenLeaves(Type *T, std::vector<unsigned> &path, std::vector<std::pair<std::vector<unsigned>, Type *>> &out) {
+  if (auto *ST = dyn_cast<StructType>(T)) {
+    for (unsigned i = 0; i < ST->getNumElements(); ++i) {
+      Type *E = ST->getElementType(i);
+      if (auto *AT = dyn_cast<ArrayType>(E); AT && AT->getElementType()->isIntegerTy(8) && ST->getNumElements() > 1 && i == ST->getNumElements() - 1)
+        continue; // tail padding
+      path.push_back(i);
+      flattenLeaves(E, path, out);
+      path.pop_back();
+    }
+  } else if (auto *AT = dyn_cast<ArrayType>(T)) {
+    for (unsigned i = 0; i < AT->getNumElements(); ++i) {
+      path.push_back(i);
+      flattenLeaves(AT->getElementType(), path, out);
+      path.pop_back();
+    }
+  } else {
+    out.push_back({path, T});
+  }
+}
+
+static Type *fixAS4(Type *T) {
+  if (T->isPointerTy() && T->getPointerAddressSpace() == 4)
+    return PointerType::get(T->getNonOpaquePointerElementType(), 0);
+  return T;
+}
+
+static void lowerRayTracing(Module &M) {
+  LLVMContext &C = M.getContext();
+  static const std::vector<std::pair<unsigned, const char *>> tags = {
+      {2, "instancing"}, {4, "max_levels"}, {8, "triangle_data"}, {16, "curve_data"}, {32, "world_space_data"},
+      {64, "user_data"}, {128, "primitive_motion"}, {256, "instance_motion"}, {512, "extended_limits"}};
+  std::vector<Function *> stubs;
+  for (Function &F : M) {
+    StringRef n = F.getName();
+    if (n.contains("__xt_rt_s") || n.contains("__xt_rt_v") || n.contains("__xt_vft_call")) stubs.push_back(&F);
+  }
+  for (Function *F : stubs) {
+    StringRef n = F->getName();
+    bool isS = n.contains("__xt_rt_s"), isVft = n.contains("__xt_vft_call");
+    unsigned op = 0;
+    if (!isVft) {
+      size_t p = n.find("Lj");
+      while (p != StringRef::npos && !(p + 2 < n.size() && isdigit(n[p + 2]))) p = n.find("Lj", p + 1);
+      if (p == StringRef::npos) die("internal: bad ray tracing placeholder " + n);
+      n.substr(p + 2).take_while([](char c) { return isdigit(c); }).getAsInteger(10, op);
+    }
+    std::vector<CallInst *> calls;
+    for (User *U : F->users()) if (auto *CI = dyn_cast<CallInst>(U)) calls.push_back(CI);
+    for (CallInst *CI : calls) {
+      IRBuilder<> B(CI);
+      if (isVft) {
+        // __xt_vft_call<R>(fnptr, args...): indirect call
+        Value *FP = CI->getArgOperand(0)->stripPointerCasts();
+        std::vector<Value *> args;
+        std::vector<Type *> types;
+        for (unsigned a = 1; a < CI->arg_size(); ++a) { args.push_back(CI->getArgOperand(a)); types.push_back(args.back()->getType()); }
+        FunctionType *FT = FunctionType::get(CI->getType(), types, false);
+        Value *Callee = B.CreatePointerBitCastOrAddrSpaceCast(FP, PointerType::get(FT, 0));
+        CallInst *NC = B.CreateCall(FT, Callee, args);
+        CI->replaceAllUsesWith(NC);
+        CI->eraseFromParent();
+        continue;
+      }
+      auto *TC = dyn_cast<ConstantInt>(CI->getArgOperand(0));
+      if (!TC) die("internal: ray tracing tags are not constant");
+      unsigned bits = TC->getZExtValue();
+      std::string suffix;
+      for (auto &t : tags) if (bits & t.first) suffix += std::string(".") + t.second;
+      std::string name;
+      if (op == 0) name = "air.intersect" + suffix;
+      else if (op == 1) name = "air.get_null_intersection_function_table";
+      else if (op == 2) name = "air.is_null_instance_acceleration_structure";
+      else if (op == 3) name = "air.is_null_primitive_acceleration_structure";
+      else if (op == 4) name = "air.is_null_intersection_function_table";
+      else if (op >= 100 && op - 100 < sizeof(kRTQ) / sizeof(kRTQ[0])) name = std::string("air.") + kRTQ[op - 100] + "_intersection_query" + suffix;
+      else die("internal: unknown ray tracing op");
+      unsigned first = isS ? 2 : 1;
+      std::vector<Value *> args;
+      std::vector<Type *> types;
+      for (unsigned a = first; a < CI->arg_size(); ++a) {
+        Value *V = CI->getArgOperand(a);
+        Type *T = fixAS4(V->getType());
+        if (T != V->getType()) {
+          if (isa<ConstantPointerNull>(V->stripPointerCasts())) V = ConstantPointerNull::get(cast<PointerType>(T));
+          else V = B.CreateAddrSpaceCast(V, T);
+        }
+        args.push_back(V);
+        types.push_back(T);
+      }
+      if (isS) {
+        Value *Out = CI->getArgOperand(1);
+        Type *OT = Out->getType()->getNonOpaquePointerElementType();
+        std::vector<unsigned> path;
+        std::vector<std::pair<std::vector<unsigned>, Type *>> leaves;
+        flattenLeaves(OT, path, leaves);
+        std::vector<Type *> rts;
+        for (auto &l : leaves) rts.push_back(l.second->isIntegerTy(8) ? Type::getInt1Ty(C) : l.second);
+        FunctionCallee fc = M.getOrInsertFunction(name, FunctionType::get(StructType::get(C, rts), types, false));
+        CallInst *NC = B.CreateCall(fc, args);
+        for (unsigned i = 0; i < leaves.size(); ++i) {
+          std::vector<Value *> idx = {B.getInt32(0)};
+          for (unsigned k : leaves[i].first) idx.push_back(B.getInt32(k));
+          Value *P = B.CreateInBoundsGEP(OT, Out, idx);
+          Value *V = B.CreateExtractValue(NC, i);
+          if (V->getType() != leaves[i].second) V = B.CreateZExt(V, leaves[i].second);
+          B.CreateStore(V, P);
+        }
+      } else {
+        Type *RT = fixAS4(CI->getType());
+        FunctionCallee fc = M.getOrInsertFunction(name, FunctionType::get(RT, types, false));
+        CallInst *NC = B.CreateCall(fc, args);
+        if (!CI->getType()->isVoidTy()) {
+          Value *R = NC;
+          if (RT != CI->getType()) R = B.CreateAddrSpaceCast(NC, CI->getType());
+          CI->replaceAllUsesWith(R);
+        }
+      }
+      CI->eraseFromParent();
+    }
+    if (F->use_empty()) F->eraseFromParent();
+  }
+  // air.get_function_pointer_visible_function_table returns a private-space pointer.
+  if (Function *G = M.getFunction("air.get_function_pointer_visible_function_table")) {
+    if (G->getReturnType() != Type::getInt8PtrTy(C)) {
+      FunctionType *FT = FunctionType::get(Type::getInt8PtrTy(C), G->getFunctionType()->params(), false);
+      G->setName("air.get_function_pointer_visible_function_table.old");
+      FunctionCallee fc = M.getOrInsertFunction("air.get_function_pointer_visible_function_table", FT);
+      std::vector<CallInst *> calls;
+      for (User *U : G->users()) if (auto *CI = dyn_cast<CallInst>(U)) calls.push_back(CI);
+      for (CallInst *CI : calls) {
+        IRBuilder<> B(CI);
+        std::vector<Value *> args(CI->arg_begin(), CI->arg_end());
+        Value *R = B.CreateAddrSpaceCast(B.CreateCall(fc, args), CI->getType());
+        CI->replaceAllUsesWith(R);
+        CI->eraseFromParent();
+      }
+      if (G->use_empty()) G->eraseFromParent();
+    }
+  }
+}
+
+
+// patch_control_point<CP>::operator[] -> "<CP>.MTL_CONTROL_POINT_FN"(index, handle), externally defined.
+static void lowerControlPoints(Module &M) {
+  LLVMContext &C = M.getContext();
+  std::vector<Function *> stubs;
+  for (Function &F : M) if (F.getName().contains("__xt_cp_load")) stubs.push_back(&F);
+  for (Function *F : stubs) {
+    std::vector<CallInst *> calls;
+    for (User *U : F->users()) if (auto *CI = dyn_cast<CallInst>(U)) calls.push_back(CI);
+    for (CallInst *CI : calls) {
+      IRBuilder<> B(CI);
+      Value *Out = CI->getArgOperand(2);
+      Type *OT = Out->getType()->getNonOpaquePointerElementType();
+      std::string sn = cast<StructType>(OT)->getName().str();
+      for (const char *pre : {"struct.", "class."}) if (StringRef(sn).startswith(pre)) sn = sn.substr(strlen(pre));
+      if (auto dot = sn.find('.'); dot != std::string::npos) sn = sn.substr(0, dot);
+      std::string fn = "_Z" + std::to_string(sn.size()) + sn + ".MTL_CONTROL_POINT_FN";
+      std::vector<unsigned> path;
+      std::vector<std::pair<std::vector<unsigned>, Type *>> leaves;
+      flattenLeaves(OT, path, leaves);
+      std::vector<Type *> rts;
+      for (auto &l : leaves) rts.push_back(l.second);
+      Value *H = CI->getArgOperand(1);
+      FunctionCallee fc = M.getOrInsertFunction(fn, FunctionType::get(StructType::get(C, rts), {B.getInt32Ty(), H->getType()}, false));
+      if (auto *D = dyn_cast<Function>(fc.getCallee())) D->setSection("air.externally_defined");
+      CallInst *NC = B.CreateCall(fc, {CI->getArgOperand(0), H});
+      for (unsigned i = 0; i < leaves.size(); ++i) {
+        std::vector<Value *> idx = {B.getInt32(0)};
+        for (unsigned k : leaves[i].first) idx.push_back(B.getInt32(k));
+        B.CreateStore(B.CreateExtractValue(NC, i), B.CreateInBoundsGEP(OT, Out, idx));
+      }
+      CI->eraseFromParent();
+    }
+    if (F->use_empty()) F->eraseFromParent();
+  }
+}
+
+
+static std::string airValueSuffix(Type *T) { return airTypeSuffix(T); }
+
+// set_vertex / set_primitive / implicit imageblock read & write: one AIR call per field, using the layouts the
+// collector recorded for the structs in the entry point signatures.
+static void lowerMeshImageblock(Module &M, const std::map<std::string, std::vector<CollectResult::LayoutField>> &layouts) {
+  LLVMContext &C = M.getContext();
+  std::vector<Function *> stubs;
+  for (Function &F : M) {
+    StringRef n = F.getName();
+    if (n.contains("__xt_mesh_vertex") || n.contains("__xt_mesh_prim") || n.contains("__xt_ib_read") || n.contains("__xt_ib_write"))
+      stubs.push_back(&F);
+  }
+  for (Function *F : stubs) {
+    StringRef n = F->getName();
+    bool vtx = n.contains("__xt_mesh_vertex"), prim = n.contains("__xt_mesh_prim"), rd = n.contains("__xt_ib_read");
+    std::vector<CallInst *> calls;
+    for (User *U : F->users()) if (auto *CI = dyn_cast<CallInst>(U)) calls.push_back(CI);
+    for (CallInst *CI : calls) {
+      IRBuilder<> B(CI);
+      Value *P = CI->getArgOperand((vtx || prim) ? 2 : 3);
+      Type *ST = P->getType()->getNonOpaquePointerElementType();
+      std::string key = std::string(vtx ? "vertex:" : prim ? "prim:" : "ib:") + cast<StructType>(ST)->getName().str();
+      auto it = layouts.find(key);
+      if (it == layouts.end()) die("internal: no layout recorded for " + key);
+      Value *base = B.CreatePointerBitCastOrAddrSpaceCast(P, Type::getInt8PtrTy(C, P->getType()->getPointerAddressSpace()));
+      for (auto &lf : it->second) {
+        Type *VT = irType(M, lf.type), *MT = memType(M, lf.type);
+        if (!VT) continue;
+        Value *addr = B.CreateBitCast(B.CreateConstInBoundsGEP1_64(B.getInt8Ty(), base, lf.offset), PointerType::get(MT, P->getType()->getPointerAddressSpace()));
+        if (vtx || prim) {
+          Value *m = CI->getArgOperand(0), *idx = CI->getArgOperand(1);
+          Value *v = B.CreateLoad(MT, addr);
+          if (MT != VT) v = B.CreateTrunc(v, VT);
+          std::string name;
+          std::vector<Value *> args;
+          if (lf.role == "data") {
+            name = std::string(vtx ? "air.set_vertex_data_mesh." : "air.set_primitive_data_mesh.") + airValueSuffix(VT);
+            args = {m, B.getInt32(lf.index), idx, v};
+          } else {
+            name = "air.set_" + lf.role + "_mesh";
+            args = {m, idx, v};
+          }
+          std::vector<Type *> ts;
+          for (auto *a : args) ts.push_back(a->getType());
+          B.CreateCall(M.getOrInsertFunction(name, FunctionType::get(B.getVoidTy(), ts, false)), args);
+        } else {
+          Value *coord = CI->getArgOperand(0);
+          if (rd) {
+            FunctionCallee fc = M.getOrInsertFunction("air.load.implicit_imageblock." + airValueSuffix(VT),
+                FunctionType::get(VT, {B.getInt32Ty(), coord->getType(), B.getInt32Ty(), B.getInt16Ty()}, false));
+            Value *v = B.CreateCall(fc, {B.getInt32(lf.index), coord, CI->getArgOperand(1), CI->getArgOperand(2)});
+            if (MT != VT) v = B.CreateZExt(v, MT);
+            B.CreateStore(v, addr);
+          } else {
+            Value *v = B.CreateLoad(MT, addr);
+            if (MT != VT) v = B.CreateTrunc(v, VT);
+            auto *rate = dyn_cast<ConstantInt>(CI->getArgOperand(1));
+            if (rate && rate->getSExtValue() == -1) {
+              // rate -1 marks a write with a sample mask (passed in the index slot).
+              FunctionCallee fc = M.getOrInsertFunction("air.store.implicit_imageblock.mask." + airValueSuffix(VT),
+                  FunctionType::get(B.getVoidTy(), {VT, B.getInt32Ty(), coord->getType(), B.getInt16Ty()}, false));
+              B.CreateCall(fc, {v, B.getInt32(lf.index), coord, CI->getArgOperand(2)});
+            } else {
+              FunctionCallee fc = M.getOrInsertFunction("air.store.implicit_imageblock." + airValueSuffix(VT),
+                  FunctionType::get(B.getVoidTy(), {VT, B.getInt32Ty(), coord->getType(), B.getInt32Ty(), B.getInt16Ty()}, false));
+              B.CreateCall(fc, {v, B.getInt32(lf.index), coord, CI->getArgOperand(1), CI->getArgOperand(2)});
+            }
+          }
+        }
+      }
+      CI->eraseFromParent();
+    }
+    if (F->use_empty()) F->eraseFromParent();
+  }
+}
+
 static void runPasses(Module &M, bool inlineAll) {
+  if (const char *dump = getenv("XT_DUMP_PREOPT")) {
+    std::error_code ec;
+    raw_fd_ostream os(dump, ec);
+    if (!ec) WriteBitcodeToFile(M, os);
+  }
   LoopAnalysisManager LAM;
   FunctionAnalysisManager FAM;
   CGSCCAnalysisManager CGAM;
@@ -1617,7 +2177,10 @@ static void runPasses(Module &M, bool inlineAll) {
   // Threadgroup variables from function bodies are addrspace(3) globals reached through casts to the private
   // address space; infer their real address space too.
   MPM.addPass(createModuleToFunctionPassAdaptor(InferAddressSpacesPass(0)));
-  MPM.addPass(PB.buildPerModuleDefaultPipeline(OptimizationLevel::O1));
+  // Cleanup after address-space inference. A second default pipeline would rerun Reassociate on unrolled
+  // code and reorder fast-math operands, which changes how the GPU back end fuses multiply-adds.
+  if (auto err = PB.parsePassPipeline(MPM, "function(sroa,early-cse<memssa>,instcombine,simplifycfg,gvn,dse,adce,instcombine,simplifycfg)"))
+    report_fatal_error(std::move(err));
   MPM.addPass(GlobalDCEPass());
   MPM.run(M, MAM);
 }
@@ -1746,7 +2309,7 @@ static int cmdCompile(int argc, char **argv) {
 
   std::vector<std::string> args = {"-triple", "spir64-unknown-unknown", "-emit-llvm-only", "-O2", "-disable-llvm-passes", "-disable-llvm-verifier",
                                    "-x", "clcpp", "-cl-std=clc++2021", "-cl-ext=+cl_khr_fp16,+cl_khr_fp64,+__opencl_c_fp64,+__opencl_c_generic_address_space,+__opencl_c_program_scope_global_variables,+__opencl_c_images,+__opencl_c_read_write_images,+__opencl_c_atomic_order_seq_cst,+__opencl_c_atomic_scope_device",
-                                   "-cl-single-precision-constant", "-cl-fp32-correctly-rounded-divide-sqrt", "-no-opaque-pointers", "-fno-builtin", "-ffreestanding",
+                                   "-cl-single-precision-constant", "-cl-fp32-correctly-rounded-divide-sqrt", "-fpreserve-vec3-type", "-no-opaque-pointers", "-fno-builtin", "-ffreestanding",
                                    "-fno-signed-char", "-Wno-user-defined-literals", "-Wno-unused-value", "-Wno-duplicate-decl-specifier",
                                    "-ferror-limit", "50"};
   if (fastMath) {
@@ -1806,6 +2369,9 @@ static int cmdCompile(int argc, char **argv) {
   M->setDataLayout(kAirDataLayout);
   stripAnnotations(*M);
   fixGlobalInitializers(*M);
+  lowerRayTracing(*M);
+  lowerControlPoints(*M);
+  lowerMeshImageblock(*M, R.layouts);
   lowerSparseIntrinsics(*M);
   // Everything but entry points gets inlined; MSL has no recursion or function pointers.
   for (Function &F : *M) {
@@ -1930,11 +2496,21 @@ static int cmdCompile(int argc, char **argv) {
   for (GlobalVariable &G : M->globals())
     if (G.getAddressSpace() == 4) die("generic address space global left after lowering: " + G.getName());
 
+  for (auto &cp : R.controlPointFns) {
+    if (M->getFunction(cp.first)) continue;
+    std::vector<Type *> rts;
+    for (auto &vt : cp.second) rts.push_back(irType(*M, vt));
+    auto *H = PointerType::get(StructType::getTypeByName(M->getContext(), "struct._patch_control_point_t") ?: StructType::create(M->getContext(), "struct._patch_control_point_t"), 0);
+    Function *D = Function::Create(FunctionType::get(StructType::get(M->getContext(), rts), {Type::getInt32Ty(M->getContext()), H}, false),
+                                   GlobalValue::ExternalLinkage, cp.first, *M);
+    D->setSection("air.externally_defined");
+  }
   // Entry metadata
   LLVMContext &C = M->getContext();
   std::map<EntryKind, const char *> listName = {{EntryKind::Vertex, "air.vertex"}, {EntryKind::Fragment, "air.fragment"},
                                                 {EntryKind::Kernel, "air.kernel"}, {EntryKind::Visible, "air.visible"},
-                                                {EntryKind::Mesh, "air.mesh"}, {EntryKind::Object, "air.object"}};
+                                                {EntryKind::Mesh, "air.mesh"}, {EntryKind::Object, "air.object"},
+                                                {EntryKind::Intersection, "air.intersection"}};
   for (auto &p : lowered) {
     EntryDesc &E = *p.first;
     MD outs = MD::node();
@@ -1943,6 +2519,8 @@ static int cmdCompile(int argc, char **argv) {
     for (auto &a : E.args) for (auto &f : a.fields) ins.add(f.md);
     MD node = MD::node({MD::func(E.name), outs, ins});
     if (E.stitchable) node.add(E.stitching);
+    for (auto &x : E.extraAttrs) node.add(x);
+    (void)0;
     M->getOrInsertNamedMetadata(listName[E.kind])->addOperand(cast<MDNode>(materialize(*M, node)));
   }
   if (!R.constants.empty()) {
@@ -2026,7 +2604,7 @@ static int cmdLink(int argc, char **argv) {
   struct Fn { std::string name; int type; std::string bc; std::string publicTags; };
   std::vector<Fn> fns;
   std::vector<std::pair<const char *, int>> lists = {{"air.vertex", 0}, {"air.fragment", 1}, {"air.kernel", 2}, {"air.visible", 4},
-                                                     {"air.mesh", 7}, {"air.object", 8}};
+                                                     {"air.intersection", 6}, {"air.mesh", 7}, {"air.object", 8}};
   // Collect entries in module function order.
   std::map<Function *, std::pair<const char *, int>> entryKind;
   std::map<Function *, MDNode *> entryNode;

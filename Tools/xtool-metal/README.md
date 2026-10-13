@@ -55,11 +55,18 @@ libraries through `tests/harness/mtltest.swift` (stitchable functions go through
 ## Status
 
 Public corpus (Inferno, MetalPetal, Apple sample code mirror, iShader, metallurgy, SwiftUIShaders,
-MetalSprockets; `tests/corpus/fetch.sh`): 229 of 244 files compile and link (Apple's compiler: 238; two
-of our failures are missing headers that Apple's compiler also cannot find). For every file both
-compilers build, the function list matches Apple's and every compute pipeline builds on the GPU.
-Compile + link takes about 0.2 s per file with the precompiled standard library.
+MetalSprockets; `tests/corpus/fetch.sh`): 242 of 244 files compile and link. The other two include
+headers that are not in the corpus, and Apple's compiler fails on them too. For every file both compilers
+build, the function list matches Apple's and every compute pipeline builds on the GPU (or fails the same way
+Apple's does). Compile + link takes about 0.2 s per file with the precompiled standard library.
 
-Not yet: ray tracing (intersectors, acceleration structures, intersection functions), imageblocks and
-pixel-format types, mesh/object functions, post-tessellation vertex functions, the rest of the indirect
-command buffer API, and debug info.
+`tests/corpus/auto_compare.sh` runs `mtltest auto` on the Mac. It dispatches every compute kernel and
+renders every vertex+fragment pair, using generated inputs taken from pipeline reflection (typed buffer
+contents, textures, samplers, vertex descriptors, required function constants). It first compares the
+binding layout, then compares the output bytes against Apple's build of the same file. Cases where Apple's
+own two runs differ, or Apple's pipeline fails with the generated inputs, are skipped.
+
+Covered: vertex/fragment/kernel/visible/stitchable, mesh and object functions, intersection functions
+and ray tracing (intersectors, intersection queries, acceleration structures, function tables),
+imageblocks (implicit/explicit, MSAA color rates, sample masks) and pixel-format types, post-tessellation
+vertex functions, and indirect command buffers. Not yet: debug info.
