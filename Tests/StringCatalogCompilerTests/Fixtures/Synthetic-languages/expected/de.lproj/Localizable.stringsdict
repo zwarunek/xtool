@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>device_key</key>
+	<dict>
+		<key>NSStringDeviceSpecificRuleType</key>
+		<dict>
+			<key>iphone</key>
+			<string>Hier tippen</string>
+		</dict>
+	</dict>
+	<key>partial_plural %lld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld Ding</string>
+			<key>other</key>
+			<string>%lld Dinge</string>
+		</dict>
+	</dict>
+	<key>subs %#@birds@ %#@yards@</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>Ich sah %1$#@birds@ in %2$#@yards@</string>
+		<key>birds</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%1$lld Vogel</string>
+			<key>other</key>
+			<string>%1$lld Vögel</string>
+		</dict>
+		<key>yards</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%2$lld Garten</string>
+			<key>other</key>
+			<string>%2$lld Gärten</string>
+		</dict>
+	</dict>
+	<key>subs no plural %#@n@</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@n@ Sachen</string>
+		<key>n</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>eine</string>
+			<key>other</key>
+			<string>%1$ld</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

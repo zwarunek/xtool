@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Alpha key</key>
+	<string>Alpha</string>
+	<key>Plain %@</key>
+	<string>Einfach %@</string>
+	<key>Zeta last key</key>
+	<string>Zeta</string>
+	<key>device_key</key>
+	<string>Hier auswählen</string>
+	<key>en_override</key>
+	<string></string>
+	<key>same as key</key>
+	<string>gleich</string>
+	<key>stale_key</key>
+	<string>Veraltet</string>
+	<key>unicode ключ 🔑</key>
+	<string>Schlüssel 🔑 ä</string>
+</dict>
+</plist>

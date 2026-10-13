@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>d_new_src</key>
+	<dict>
+		<key>NSStringDeviceSpecificRuleType</key>
+		<dict>
+			<key>iphone</key>
+			<string>phone</string>
+		</dict>
+	</dict>
+	<key>d_no_other</key>
+	<dict>
+		<key>NSStringDeviceSpecificRuleType</key>
+		<dict>
+			<key>ipad</key>
+			<string>pad</string>
+			<key>iphone</key>
+			<string>phone</string>
+		</dict>
+	</dict>
+	<key>new_src_subs %#@a@</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@a@</string>
+		<key>a</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%1$lld a</string>
+			<key>other</key>
+			<string>%1$lld as</string>
+		</dict>
+	</dict>
+	<key>p_d</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%d dog</string>
+			<key>other</key>
+			<string>%d dogs</string>
+		</dict>
+	</dict>
+	<key>p_f</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>f</string>
+			<key>one</key>
+			<string>%.1f km</string>
+			<key>other</key>
+			<string>%.1f kms</string>
+		</dict>
+	</dict>
+	<key>p_int_third</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%3$#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%1$@ %2$@ %3$lld</string>
+			<key>other</key>
+			<string>%1$@ %2$@ %3$lld</string>
+		</dict>
+	</dict>
+	<key>p_ld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>ld</string>
+			<key>one</key>
+			<string>%ld cat</string>
+			<key>other</key>
+			<string>%ld cats</string>
+		</dict>
+	</dict>
+	<key>p_lu</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lu</string>
+			<key>one</key>
+			<string>%lu y</string>
+			<key>other</key>
+			<string>%lu ys</string>
+		</dict>
+	</dict>
+	<key>p_mixed_cases</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>one item</string>
+			<key>other</key>
+			<string>%lld items</string>
+		</dict>
+	</dict>
+	<key>p_mixed_state_src</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld n</string>
+			<key>other</key>
+			<string>%lld ns</string>
+		</dict>
+	</dict>
+	<key>p_new_src</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld n</string>
+			<key>other</key>
+			<string>%lld ns</string>
+		</dict>
+	</dict>
+	<key>p_obj_then_int</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%2$#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%1$@ has %2$lld</string>
+			<key>other</key>
+			<string>%1$@ have %2$lld</string>
+		</dict>
+	</dict>
+	<key>p_percent</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld%% done</string>
+			<key>other</key>
+			<string>%lld%% done!</string>
+		</dict>
+	</dict>
+	<key>p_pos_rev</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%2$#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%2$lld for %1$@</string>
+			<key>other</key>
+			<string>%2$lld for %1$@s</string>
+		</dict>
+	</dict>
+	<key>p_two_ints</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld of %lld</string>
+			<key>other</key>
+			<string>%lld of %lld total</string>
+		</dict>
+	</dict>
+	<key>p_u</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>u</string>
+			<key>one</key>
+			<string>%u x</string>
+			<key>other</key>
+			<string>%u xs</string>
+		</dict>
+	</dict>
+	<key>subs_noarg %#@a@</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@a@!</string>
+		<key>a</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>one</string>
+			<key>other</key>
+			<string>many</string>
+		</dict>
+	</dict>
+	<key>subs_obj %#@a@</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%@ and %2$#@a@</string>
+		<key>a</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%2$lld thing</string>
+			<key>other</key>
+			<string>%2$lld things</string>
+		</dict>
+	</dict>
+	<key>subs_pos %#@a@</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%2$@ and %1$#@a@</string>
+		<key>a</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>d</string>
+			<key>one</key>
+			<string>%1$d thing</string>
+			<key>other</key>
+			<string>%1$d things and %%</string>
+		</dict>
+	</dict>
+	<key>subs_twice %#@a@</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@a@ / %1$#@a@</string>
+		<key>a</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%1$lld</string>
+			<key>other</key>
+			<string>%1$lld s</string>
+		</dict>
+	</dict>
+	<key>subs_unused</key>
+	<string>no ref</string>
+</dict>
+</plist>

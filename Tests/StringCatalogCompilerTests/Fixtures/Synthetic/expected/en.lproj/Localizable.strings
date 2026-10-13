@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>device_key</key>
+	<string>Select here</string>
+	<key>device_plural_ok %lld</key>
+	<string>%lld devices</string>
+	<key>dont_translate</key>
+	<string>Brand™</string>
+	<key>en needs review</key>
+	<string>Review me</string>
+	<key>en only stale state</key>
+	<string>Stale value</string>
+	<key>en_override</key>
+	<string>English override "quoted"
+newline	tab \ backslash</string>
+	<key>no_localizations_key</key>
+	<string>no_localizations_key</string>
+	<key>same as key</key>
+	<string>same as key</string>
+	<key>stale_key</key>
+	<string>Stale english</string>
+</dict>
+</plist>

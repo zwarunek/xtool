@@ -1,0 +1,608 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "": {},
+    "Plain %@": {
+      "comment": "simple",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Einfach %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Simple %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Sencillo %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "stale",
+            "value": "シンプル %@"
+          }
+        }
+      }
+    },
+    "no_localizations_key": {
+      "extractionState": "manual"
+    },
+    "stale_key": {
+      "extractionState": "stale",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stale english"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Veraltet"
+          }
+        }
+      }
+    },
+    "dont_translate": {
+      "shouldTranslate": false,
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Brand™"
+          }
+        }
+      }
+    },
+    "en_override": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English override \"quoted\"\nnewline\ttab \\ backslash"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ""
+          }
+        }
+      }
+    },
+    "plural_key %lld": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld item"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld items"
+                }
+              }
+            }
+          }
+        },
+        "fr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld élément"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld d'éléments"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld éléments"
+                }
+              }
+            }
+          }
+        },
+        "ja": {
+          "variations": {
+            "plural": {
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld 個"
+                }
+              }
+            }
+          }
+        },
+        "ar": {
+          "variations": {
+            "plural": {
+              "zero": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "لا عناصر"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "عنصر واحد"
+                }
+              },
+              "two": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "عنصران"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld عناصر"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld عنصرًا"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld عنصر"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "device_key": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "device": {
+              "iphone": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Tap here"
+                }
+              },
+              "ipad": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Tap here on iPad"
+                }
+              },
+              "mac": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Click here"
+                }
+              },
+              "applewatch": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Tap"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Select here"
+                }
+              }
+            }
+          }
+        },
+        "de": {
+          "variations": {
+            "device": {
+              "iphone": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Hier tippen"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Hier auswählen"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "subs %#@birds@ %#@yards@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I saw %#@birds@ in %#@yards@"
+          },
+          "substitutions": {
+            "birds": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg bird"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg birds"
+                    }
+                  }
+                }
+              }
+            },
+            "yards": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg yard"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg yards"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Ich sah %#@birds@ in %#@yards@"
+          },
+          "substitutions": {
+            "birds": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg Vogel"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg Vögel"
+                    }
+                  }
+                }
+              }
+            },
+            "yards": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg Garten"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg Gärten"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "partial_plural %lld": {
+      "localizations": {
+        "de": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "new",
+                  "value": "%lld Ding"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld Dinge"
+                }
+              }
+            }
+          }
+        },
+        "es": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld cosa"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Zeta last key": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeta"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "泽塔"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeta BR"
+          }
+        }
+      }
+    },
+    "Alpha key": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alpha"
+          }
+        }
+      }
+    },
+    "device_plural_ok %lld": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "device": {
+              "iphone": {
+                "variations": {
+                  "plural": {
+                    "one": {
+                      "stringUnit": {
+                        "state": "translated",
+                        "value": "%lld phone"
+                      }
+                    },
+                    "other": {
+                      "stringUnit": {
+                        "state": "translated",
+                        "value": "%lld phones"
+                      }
+                    }
+                  }
+                }
+              },
+              "ipad": {
+                "variations": {
+                  "plural": {
+                    "one": {
+                      "stringUnit": {
+                        "state": "translated",
+                        "value": "%lld tablet"
+                      }
+                    },
+                    "other": {
+                      "stringUnit": {
+                        "state": "translated",
+                        "value": "%lld tablets"
+                      }
+                    }
+                  }
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld devices"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "plural_with_subs %lld %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ has %#@followers@"
+          },
+          "substitutions": {
+            "followers": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg follower"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg followers"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "en only stale state": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "stale",
+            "value": "Stale value"
+          }
+        }
+      }
+    },
+    "en needs review": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "needs_review",
+            "value": "Review me"
+          }
+        }
+      }
+    },
+    "en new": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "New english"
+          }
+        }
+      }
+    },
+    "same as key": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "same as key"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gleich"
+          }
+        }
+      }
+    },
+    "unicode ключ 🔑": {
+      "comment": "emoji",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlüssel 🔑 ä"
+          }
+        }
+      }
+    },
+    "width %lld": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "zero": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "no width"
+                }
+              },
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld width"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld widths"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "subs no plural %#@n@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@n@ Sachen"
+          },
+          "substitutions": {
+            "n": {
+              "argNum": 1,
+              "formatSpecifier": "ld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "eine"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

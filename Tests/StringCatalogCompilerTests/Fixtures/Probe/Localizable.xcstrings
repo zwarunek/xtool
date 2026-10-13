@@ -1,0 +1,761 @@
+{
+  "sourceLanguage": "en",
+  "version": "1.0",
+  "strings": {
+    "p_two_ints": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld of %lld"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld of %lld total"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_obj_then_int": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ has %lld"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ have %lld"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_pos_rev": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%2$lld for %1$@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%2$lld for %1$@s"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_d": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d dog"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%d dogs"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_ld": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%ld cat"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%ld cats"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_u": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%u x"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%u xs"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_lu": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lu y"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lu ys"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_f": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%.1f km"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%.1f kms"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_mixed_cases": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "one item"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld items"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_percent": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld%% done"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld%% done!"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_int_third": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%@ %@ %lld"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%1$@ %2$@ %3$lld"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_new_src": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "new",
+                  "value": "%lld n"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "new",
+                  "value": "%lld ns"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "p_mixed_state_src": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "new",
+                  "value": "%lld n"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld ns"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "d_new_src": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "device": {
+              "iphone": {
+                "stringUnit": {
+                  "state": "new",
+                  "value": "phone"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "new",
+                  "value": "other"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "d_no_other": {
+      "localizations": {
+        "en": {
+          "variations": {
+            "device": {
+              "iphone": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "phone"
+                }
+              },
+              "ipad": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "pad"
+                }
+              }
+            }
+          }
+        },
+        "de": {
+          "variations": {
+            "device": {
+              "mac": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Mac"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "new_src_plain": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "new plain"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "new",
+            "value": "neu"
+          }
+        }
+      }
+    },
+    "new_src_subs %#@a@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "%#@a@"
+          },
+          "substitutions": {
+            "a": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "new",
+                      "value": "%arg a"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "new",
+                      "value": "%arg as"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ext_manual": {
+      "extractionState": "manual"
+    },
+    "ext_stale": {
+      "extractionState": "stale"
+    },
+    "ext_stale_de": {
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "alt"
+          }
+        }
+      }
+    },
+    "ext_with_value": {
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "ext value"
+          }
+        }
+      }
+    },
+    "ext_migrated": {
+      "extractionState": "migrated"
+    },
+    "ext_pasted": {
+      "extractionState": "pasted"
+    },
+    "ext_auto_none": {},
+    "notr": {
+      "shouldTranslate": false
+    },
+    "notr_de": {
+      "shouldTranslate": false,
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nicht"
+          }
+        }
+      }
+    },
+    "notr_manual": {
+      "shouldTranslate": false,
+      "extractionState": "manual"
+    },
+    "subs_obj %#@a@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ and %#@a@"
+          },
+          "substitutions": {
+            "a": {
+              "argNum": 2,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg thing"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg things"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "subs_pos %#@a@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%2$@ and %1$#@a@"
+          },
+          "substitutions": {
+            "a": {
+              "argNum": 1,
+              "formatSpecifier": "d",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg thing"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg things and %%"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "subs_noarg %#@a@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@a@!"
+          },
+          "substitutions": {
+            "a": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "one"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "many"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "subs_unused": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no ref"
+          },
+          "substitutions": {
+            "a": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "one"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "many"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "subs_twice %#@a@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%#@a@ / %#@a@"
+          },
+          "substitutions": {
+            "a": {
+              "argNum": 1,
+              "formatSpecifier": "lld",
+              "variations": {
+                "plural": {
+                  "one": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg"
+                    }
+                  },
+                  "other": {
+                    "stringUnit": {
+                      "state": "translated",
+                      "value": "%arg s"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "empty_value_plain": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ""
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ""
+          }
+        }
+      }
+    },
+    "xml & <chars> 'q'": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a & b < c > d ' \" ]]>"
+          }
+        }
+      }
+    },
+    "ctrl": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bell\u0007 nul? cr\r lf\n uFFFF￿"
+          }
+        }
+      }
+    },
+    "Ünïcödé key NFD": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ünïcödé"
+          }
+        }
+      }
+    },
+    "sort A": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A"
+          }
+        }
+      }
+    },
+    "sort a": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a"
+          }
+        }
+      }
+    },
+    "sort _": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "_"
+          }
+        }
+      }
+    },
+    "sort é": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "é"
+          }
+        }
+      }
+    },
+    "sort 😀": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "emoji"
+          }
+        }
+      }
+    },
+    "sort ｚ": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fullwidth"
+          }
+        }
+      }
+    },
+    "langs": {
+      "localizations": {
+        "en-gb": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gb"
+          }
+        },
+        "zh-hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hant"
+          }
+        },
+        "es-419": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "latam"
+          }
+        },
+        "pt_BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ptbr"
+          }
+        },
+        "sr-Latn": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "latn"
+          }
+        },
+        "zh-Hant-HK": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hk"
+          }
+        },
+        "EN-au": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "au"
+          }
+        }
+      }
+    }
+  }
+}

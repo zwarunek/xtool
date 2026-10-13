@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ctrl</key>
+	<string>bell nul? cr lf
+ uFFFF￿</string>
+	<key>empty_value_plain</key>
+	<string></string>
+	<key>ext_stale_de</key>
+	<string>alt</string>
+	<key>new_src_plain</key>
+	<string>neu</string>
+	<key>notr_de</key>
+	<string>nicht</string>
+	<key>sort A</key>
+	<string>A</string>
+	<key>sort _</key>
+	<string>_</string>
+	<key>sort a</key>
+	<string>a</string>
+	<key>sort é</key>
+	<string>é</string>
+	<key>sort 😀</key>
+	<string>emoji</string>
+	<key>sort ｚ</key>
+	<string>fullwidth</string>
+	<key>xml &amp; &lt;chars&gt; 'q'</key>
+	<string>a &amp; b &lt; c &gt; d ' " ]]&gt;</string>
+	<key>Ünïcödé key NFD</key>
+	<string>Ünïcödé</string>
+</dict>
+</plist>

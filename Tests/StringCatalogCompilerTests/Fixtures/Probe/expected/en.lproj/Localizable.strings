@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>d_new_src</key>
+	<string>other</string>
+	<key>empty_value_plain</key>
+	<string></string>
+	<key>ext_manual</key>
+	<string>ext_manual</string>
+	<key>ext_migrated</key>
+	<string>ext_migrated</string>
+	<key>ext_pasted</key>
+	<string>ext_pasted</string>
+	<key>notr_manual</key>
+	<string>notr_manual</string>
+</dict>
+</plist>

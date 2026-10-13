@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ctrl</key>
+	<string>ctrl</string>
+	<key>d_new_src</key>
+	<string>other</string>
+	<key>empty_value_plain</key>
+	<string></string>
+	<key>ext_auto_none</key>
+	<string>ext_auto_none</string>
+	<key>ext_manual</key>
+	<string>ext_manual</string>
+	<key>ext_migrated</key>
+	<string>ext_migrated</string>
+	<key>ext_pasted</key>
+	<string>ext_pasted</string>
+	<key>ext_stale</key>
+	<string>ext_stale</string>
+	<key>ext_stale_de</key>
+	<string>ext_stale_de</string>
+	<key>ext_with_value</key>
+	<string>ext value</string>
+	<key>langs</key>
+	<string>langs</string>
+	<key>new_src_plain</key>
+	<string>new plain</string>
+	<key>notr</key>
+	<string>notr</string>
+	<key>notr_de</key>
+	<string>notr_de</string>
+	<key>notr_manual</key>
+	<string>notr_manual</string>
+	<key>sort A</key>
+	<string>sort A</string>
+	<key>sort _</key>
+	<string>sort _</string>
+	<key>sort a</key>
+	<string>sort a</string>
+	<key>sort é</key>
+	<string>sort é</string>
+	<key>sort 😀</key>
+	<string>sort 😀</string>
+	<key>sort ｚ</key>
+	<string>sort ｚ</string>
+	<key>xml &amp; &lt;chars&gt; 'q'</key>
+	<string>xml &amp; &lt;chars&gt; 'q'</string>
+	<key>Ünïcödé key NFD</key>
+	<string>Ünïcödé key NFD</string>
+</dict>
+</plist>

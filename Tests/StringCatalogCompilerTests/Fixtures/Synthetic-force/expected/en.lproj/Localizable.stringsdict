@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>device_key</key>
+	<dict>
+		<key>NSStringDeviceSpecificRuleType</key>
+		<dict>
+			<key>applewatch</key>
+			<string>Tap</string>
+			<key>ipad</key>
+			<string>Tap here on iPad</string>
+			<key>iphone</key>
+			<string>Tap here</string>
+			<key>mac</key>
+			<string>Click here</string>
+		</dict>
+	</dict>
+	<key>device_plural_ok %lld</key>
+	<dict>
+		<key>NSStringDeviceSpecificRuleType</key>
+		<dict>
+			<key>ipad</key>
+			<dict>
+				<key>NSStringLocalizedFormatKey</key>
+				<string>%#@value@</string>
+				<key>value</key>
+				<dict>
+					<key>NSStringFormatSpecTypeKey</key>
+					<string>NSStringPluralRuleType</string>
+					<key>NSStringFormatValueTypeKey</key>
+					<string>lld</string>
+					<key>one</key>
+					<string>%lld tablet</string>
+					<key>other</key>
+					<string>%lld tablets</string>
+				</dict>
+			</dict>
+			<key>iphone</key>
+			<dict>
+				<key>NSStringLocalizedFormatKey</key>
+				<string>%#@value@</string>
+				<key>value</key>
+				<dict>
+					<key>NSStringFormatSpecTypeKey</key>
+					<string>NSStringPluralRuleType</string>
+					<key>NSStringFormatValueTypeKey</key>
+					<string>lld</string>
+					<key>one</key>
+					<string>%lld phone</string>
+					<key>other</key>
+					<string>%lld phones</string>
+				</dict>
+			</dict>
+		</dict>
+	</dict>
+	<key>plural_key %lld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld item</string>
+			<key>other</key>
+			<string>%lld items</string>
+		</dict>
+	</dict>
+	<key>plural_with_subs %lld %@</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%2$@ has %1$#@followers@</string>
+		<key>followers</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%1$lld follower</string>
+			<key>other</key>
+			<string>%1$lld followers</string>
+		</dict>
+	</dict>
+	<key>subs %#@birds@ %#@yards@</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>I saw %1$#@birds@ in %2$#@yards@</string>
+		<key>birds</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%1$lld bird</string>
+			<key>other</key>
+			<string>%1$lld birds</string>
+		</dict>
+		<key>yards</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%2$lld yard</string>
+			<key>other</key>
+			<string>%2$lld yards</string>
+		</dict>
+	</dict>
+	<key>width %lld</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@value@</string>
+		<key>value</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld width</string>
+			<key>other</key>
+			<string>%lld widths</string>
+			<key>zero</key>
+			<string>no width</string>
+		</dict>
+	</dict>
+</dict>
+</plist>
