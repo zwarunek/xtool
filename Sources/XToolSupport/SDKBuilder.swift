@@ -234,7 +234,8 @@ struct SDKBuilder {
     }
 
     /// `ld64.lld` wrapper installed in the toolset: emulates `ld -r` (which lld lacks) with a static archive,
-    /// and force-loads those archives in normal links so they behave like the merged object `ld -r` makes.
+    /// force-loads those archives in normal links so they behave like the merged object `ld -r` makes, and reserves
+    /// header padding as ld64 does.
     static let ld64Trampoline = """
     #!/bin/sh
 
@@ -345,8 +346,12 @@ struct SDKBuilder {
         fi
     done
 
+    # ld64 puts __TEXT's sections at the end of the segment, so linked images have room after their load
+    # commands; lld puts __text right after them (32 bytes of padding on the simulator). Reserve the
+    # space ld64 users rely on, or install_name_tool -id/-change/-add_rpath has no room to grow a
+    # load command (llvm-install-name-tool then writes a malformed file without an error).
     status=0
-    "$bin_dir/orig/ld64.lld" "$@" || status=$?
+    "$bin_dir/orig/ld64.lld" -headerpad_max_install_names "$@" || status=$?
     # shellcheck disable=SC2086
     [ -z "$temp_files" ] || rm -f $temp_files
     exit "$status"

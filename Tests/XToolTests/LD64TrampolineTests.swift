@@ -73,6 +73,14 @@ import Testing
         #expect(args.contains("arg -dylib") && args.contains("arg libDyn.dylib"))
     }
 
+    @Test func reservesHeaderPaddingInNormalLinks() throws {
+        #expect(try run(["-execute", "\(dir.path)/Plain.o", "-o", "app"]) == 0)
+
+        let args = try record("record-ld64.lld.txt")
+        #expect(args.first == "arg -headerpad_max_install_names")
+        #expect(args.contains("arg \(dir.path)/Plain.o") && args.contains("arg app"))
+    }
+
     @Test func relocatableLinksStillProduceArchives() throws {
         let list = dir.appendingPathComponent("Mod.LinkFileList")
         try "\(dir.path)/Plain.o\n".write(to: list, atomically: true, encoding: .utf8)
