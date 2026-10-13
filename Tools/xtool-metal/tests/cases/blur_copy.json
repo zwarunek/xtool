@@ -1,0 +1,1 @@
+{"shader": "compute_texture", "kind": "compute", "kernel": "blur_copy", "grid": [16, 16, 1], "threadgroup": [8, 8, 1], "textures": [{"index": 0, "width": 16, "height": 16, "format": "rgba32Float", "pattern": "noise"}, {"index": 1, "width": 16, "height": 16, "format": "rgba32Float", "pattern": "gradient", "output": true}]}

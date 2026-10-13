@@ -1,0 +1,1 @@
+{"shader": "compute_texture", "kind": "compute", "kernel": "sample_grid", "grid": [8, 8, 1], "threadgroup": [8, 8, 1], "buffers": [{"index": 0, "bytes": 1024, "output": true}], "textures": [{"index": 0, "width": 8, "height": 8, "format": "rgba16Float", "pattern": "checker"}], "samplers": [{"index": 0, "filter": "linear", "address": "clamp"}]}

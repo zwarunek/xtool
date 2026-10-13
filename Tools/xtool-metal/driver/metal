@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+"""Linux replacement for Apple's `metal` and `metallib` command line tools.
+
+Compiles Metal Shading Language with clang 15 (C++ for OpenCL mode) plus xtmetal, which emits AIR, and
+links AIR files into a .metallib. Accepts the command lines Xcode/SwiftBuild use:
+
+  metal -c -target air64-apple-ios15.0-simulator [-I.. -F.. -D.. -isysroot SDK -std=..
+        -fmetal-math-mode=fast -fmetal-math-fp32-functions=fast -serialize-diagnostics X.dia
+        -MMD -MT dependencies -MF X.dat -gline-tables-only -frecord-sources -index-store-path P] -o X.air X.metal
+  metal -target air64-apple-ios15.0-simulator -o default.metallib a.air b.air
+  metallib -o default.metallib a.air b.air
+"""
+import os, re, shutil, subprocess, sys, tempfile
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+ROOT = os.environ.get('XTMETAL_ROOT') or os.path.normpath(os.path.join(HERE, '..', 'lib', 'xtmetal'))
+if not os.path.isdir(ROOT):
+    ROOT = os.path.normpath(os.path.join(HERE, '..'))
+CLANG = os.environ.get('XTMETAL_CLANG') or os.path.join(ROOT, 'bin', 'clang')
+XTMETAL = os.environ.get('XTMETAL_BIN') or os.path.join(ROOT, 'bin', 'xtmetal')
+INCLUDE = os.path.join(ROOT, 'include')
+sys.path.insert(0, os.path.join(ROOT, 'lib'))
+sys.path.insert(0, HERE)
+import msl_rewrite  # noqa: E402
+
+
+def die(msg, code=1):
+    sys.stderr.write(f'metal: error: {msg}\n')
+    sys.exit(code)
+
+
+def parse_target(t):
+    m = re.match(r'air64(?:_v\d+)?-apple-([a-z]+?)(\d+)(?:\.(\d+))?(?:\.\d+)?(-simulator|-macabi)?$', t)
+    if not m:
+        die(f'unsupported target {t}')
+    return m.group(1), int(m.group(2)), int(m.group(3) or 0), m.group(4) or ''
+
+
+def metal_version(os_name, major, minor, std):
+    if std:
+        m = re.search(r'metal(\d)\.(\d)', std)
+        if m:
+            return int(m.group(1)) * 100 + int(m.group(2)) * 10
+    if os_name in ('macosx', 'macos'):
+        table = [(26, 400), (15, 320), (14, 310), (13, 300), (12, 240), (11, 230)]
+    elif os_name == 'xros':
+        table = [(26, 400), (2, 320), (1, 310)]
+    else:
+        table = [(26, 400), (18, 320), (17, 310), (16, 300), (15, 240), (14, 230), (13, 220)]
+    for v, mv in table:
+        if major >= v:
+            return mv
+    return 220
+
+
+def sdk_version(sysroot):
+    if not sysroot:
+        return '26.5'
+    m = re.search(r'(\d+)\.(\d+)\.sdk', sysroot)
+    if m:
+        return f'{m.group(1)}.{m.group(2)}'
+    try:
+        import json
+        with open(os.path.join(sysroot, 'SDKSettings.json')) as f:
+            v = json.load(f).get('Version', '26.5')
+        return '.'.join(v.split('.')[:2])
+    except Exception:
+        return '26.5'
+
+
+def run(cmd, **kw):
+    if os.environ.get('XTMETAL_VERBOSE'):
+        sys.stderr.write(' '.join(cmd) + '\n')
+    return subprocess.run(cmd, **kw)
+
+
+def write_empty_dia(path):
+    # A serialized-diagnostics file with no diagnostics (what clang writes for a clean compile).
+    if path and not os.path.exists(path):
+        open(path, 'wb').close()
+
+
+def compile_one(opts, src, out):
+    os_name, major, minor, env = parse_target(opts['target'])
+    mv = metal_version(os_name, major, minor, opts.get('std'))
+    fast = opts.get('math_mode', 'fast') != 'safe' and opts.get('math_mode') != 'relaxed_precise'
+    if opts.get('fast_math') is not None:
+        fast = opts['fast_math']
+    tmp = tempfile.mkdtemp(prefix='xtmetal-')
+    try:
+        pre = os.path.join(tmp, 'pre.ii')
+        cmd = [CLANG, '-E', '-x', 'clcpp', '-cl-std=clc++2021', '-cl-no-stdinc', '-target', 'spir64', '-nostdinc',
+               '-isystem', INCLUDE, '-fms-extensions',
+               f'-D__METAL_VERSION__={mv}', '-D__METAL__=1', '-D__APPLE__=1', '-D__air__=1', '-D__AIR64__=1',
+               '-U__OPENCL_CPP_VERSION__', '-U__CL_CPP_VERSION_1_0__', '-U__CL_CPP_VERSION_2021__', '-U__SPIR__',
+               '-U__SPIR64__', '-U__OPENCL_VERSION__', '-U__OPENCL_C_VERSION__', '-U__ENDIAN_LITTLE__',
+               '-U__IMAGE_SUPPORT__', '-Dread_write=__xt_kw_read_write', '-Dread_only=__xt_kw_read_only', '-Dwrite_only=__xt_kw_write_only', '-Dglobal=__xt_kw_global', '-Dlocal=__xt_kw_local', '-Dpipe=__xt_kw_pipe', '-Datomic_int=__xt_atomic_int', '-Datomic_uint=__xt_atomic_uint', '-Datomic_float=__xt_atomic_float', '-Datomic_bool=__xt_atomic_bool', '-Datomic_long=__xt_atomic_long', '-Datomic_ulong=__xt_atomic_ulong', '-Datomic_flag=__xt_atomic_flag', '-U__FAST_RELAXED_MATH__', '-U__linux__', '-U__linux', '-Ulinux', '-U__unix__',
+               '-U__unix', '-Uunix', '-U__ELF__', '-U__gnu_linux__']
+        plat = {'ios': '__METAL_IOS__', 'macosx': '__METAL_MACOS__', 'macos': '__METAL_MACOS__', 'tvos': '__METAL_TVOS__',
+                'watchos': '__METAL_WATCHOS__', 'xros': '__METAL_XROS__'}.get(os_name)
+        if plat:
+            cmd.append(f'-D{plat}=1')
+        if fast:
+            cmd.append('-D__FAST_MATH__=1')
+        for k, v in opts['defines']:
+            cmd.append(f'-{k}{v}')
+        for i in opts['includes']:
+            cmd += ['-I', i]
+        for f in opts['frameworks']:
+            cmd += ['-F', f]
+        if opts.get('sysroot'):
+            fw = os.path.join(opts['sysroot'], 'System', 'Library', 'Frameworks')
+            cmd += ['-iframework', fw]
+        if opts.get('mf'):
+            cmd += ['-MD', '-MT', opts.get('mt') or out, '-MF', opts['mf']]
+        if opts.get('w'):
+            cmd.append('-w')
+        cmd += [src, '-o', pre]
+        r = run(cmd)
+        if r.returncode != 0:
+            write_empty_dia(opts.get('dia'))
+            return r.returncode
+        text = open(pre, encoding='utf-8', errors='surrogateescape').read()
+        try:
+            rewritten = msl_rewrite.rewrite(text, INCLUDE)
+        except msl_rewrite.RewriteError as e:
+            die(str(e))
+        rw = os.path.join(tmp, 'rw.ii')
+        open(rw, 'w', encoding='utf-8', errors='surrogateescape').write(rewritten)
+        cmd = [XTMETAL, 'compile', rw, '-o', out, '--triple', opts['target'], '--source', os.path.abspath(src),
+               '--sdk-version', sdk_version(opts.get('sysroot'))]
+        if fast:
+            cmd.append('--fast-math')
+        if opts.get('dia'):
+            cmd += ['--diag', opts['dia']]
+        extra = ['-fms-extensions']
+        if opts.get('werror'):
+            extra.append('-Werror')
+        if opts.get('w'):
+            extra.append('-w')
+        cmd += ['--'] + extra
+        r = run(cmd)
+        if os.environ.get('XTMETAL_KEEP'):
+            shutil.copy(rw, out + '.rw.ii')
+        return r.returncode
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def link(opts, inputs, out):
+    if not out:
+        out = 'default.metallib'
+    r = run([XTMETAL, 'link', '-o', out] + inputs)
+    return r.returncode
+
+
+def parse(argv, tool):
+    opts = {'defines': [], 'includes': [], 'frameworks': [], 'target': None}
+    inputs, out, compile_only = [], None, False
+    i = 0
+    takes_value = {'-o', '-target', '-MT', '-MF', '-MQ', '-isysroot', '-serialize-diagnostics', '-index-store-path',
+                   '-I', '-F', '-D', '-U', '-include', '-x', '-arch', '-isystem', '-iquote', '-idirafter',
+                   '-frecord-sources-path', '-mmacosx-version-min', '-Xlinker', '-L', '-install_name'}
+    while i < len(argv):
+        a = argv[i]
+        v = argv[i + 1] if i + 1 < len(argv) else None
+        if a == '-c':
+            compile_only = True
+        elif a == '-o':
+            out = v; i += 1
+        elif a == '-target':
+            opts['target'] = v; i += 1
+        elif a.startswith('--target='):
+            opts['target'] = a.split('=', 1)[1]
+        elif a == '-isysroot':
+            opts['sysroot'] = v; i += 1
+        elif a == '-serialize-diagnostics':
+            opts['dia'] = v; i += 1
+        elif a == '-MF':
+            opts['mf'] = v; i += 1
+        elif a == '-MT':
+            opts['mt'] = v; i += 1
+        elif a in ('-MMD', '-MD'):
+            pass
+        elif a in ('-I', '-isystem', '-iquote', '-idirafter'):
+            opts['includes'].append(v); i += 1
+        elif a.startswith('-I'):
+            opts['includes'].append(a[2:])
+        elif a == '-F':
+            opts['frameworks'].append(v); i += 1
+        elif a.startswith('-F'):
+            opts['frameworks'].append(a[2:])
+        elif a in ('-D', '-U'):
+            opts['defines'].append((a[1], v)); i += 1
+        elif a.startswith('-D') or a.startswith('-U'):
+            opts['defines'].append((a[1], a[2:]))
+        elif a.startswith('-std='):
+            opts['std'] = a
+        elif a.startswith('-fmetal-math-mode='):
+            opts['math_mode'] = a.split('=', 1)[1]
+        elif a in ('-ffast-math',):
+            opts['fast_math'] = True
+        elif a in ('-fno-fast-math',):
+            opts['fast_math'] = False
+        elif a == '-Werror':
+            opts['werror'] = True
+        elif a == '-w':
+            opts['w'] = True
+        elif a in takes_value:
+            i += 1
+        elif a.startswith('-'):
+            pass  # -gline-tables-only, -frecord-sources, -fmetal-math-fp32-functions=, -O*, -fmodules=..., -index-*
+        else:
+            inputs.append(a)
+        i += 1
+    return opts, inputs, out, compile_only
+
+
+def main():
+    tool = os.path.basename(sys.argv[0])
+    argv = sys.argv[1:]
+    if argv and argv[0] in ('--version', '-v'):
+        print('Apple metal version 32023.883 (xtmetal compatible)\nTarget: air64-apple-darwin\nThread model: posix')
+        return 0
+    opts, inputs, out, compile_only = parse(argv, tool)
+    if tool.startswith('metallib'):
+        return link(opts, inputs, out)
+    if not opts['target']:
+        opts['target'] = 'air64-apple-macosx14.0'
+    if compile_only:
+        if len(inputs) != 1:
+            die('-c needs exactly one input')
+        src = inputs[0]
+        if not out:
+            out = os.path.splitext(os.path.basename(src))[0] + '.air'
+        return compile_one(opts, src, out)
+    airs = [x for x in inputs if x.endswith('.air')]
+    srcs = [x for x in inputs if not x.endswith('.air')]
+    tmp = tempfile.mkdtemp(prefix='xtmetal-')
+    try:
+        for s in srcs:
+            a = os.path.join(tmp, os.path.splitext(os.path.basename(s))[0] + '.air')
+            rc = compile_one(opts, s, a)
+            if rc:
+                return rc
+            airs.append(a)
+        return link(opts, airs, out)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
