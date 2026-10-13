@@ -170,7 +170,10 @@ public struct Packer: Sendable {
                     // https://github.com/apple/llvm-project/blob/e716ff14c46490d2da6b240806c04e2beef01f40/llvm/include/llvm/Object/Archive.h#L33
                     // swiftlint:disable:previous line_length
                     if bytes != magic && bytes != thinMagic {
-                        try await packFile(srcName: "\(name).framework", dstName: "Frameworks/\(name).framework", sign: true)
+                        let srcURL = URL(fileURLWithPath: "\(name).framework", relativeTo: binDir)
+                        let dstURL = outputURL.appendingPathComponent("Frameworks/\(name).framework")
+                        try Packer.copyFrameworkForEmbedding(from: srcURL, to: dstURL)
+                        try Task.checkCancellation()
                     }
                 case .library(let name):
                     try await packFile(srcName: "lib\(name).dylib", dstName: "Frameworks/lib\(name).dylib", sign: true)
@@ -208,6 +211,20 @@ public struct Packer: Sendable {
                 options: 0
             )
             try encodedPlist.write(to: infoPath)
+        }
+    }
+
+    /// Top-level framework entries that are only needed to compile against the framework.
+    /// Xcode leaves them out when it embeds a framework into an app ("Embed Frameworks" removes headers on copy).
+    static let frameworkBuildOnlyEntries: Set<String> = ["Headers", "PrivateHeaders", "Modules"]
+
+    /// Copies `src` (a `.framework`) to `dst` without its headers and module maps.
+    static func copyFrameworkForEmbedding(from src: URL, to dst: URL) throws {
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: dst, withIntermediateDirectories: true)
+        for name in try fileManager.contentsOfDirectory(atPath: src.path) {
+            if frameworkBuildOnlyEntries.contains(name) { continue }
+            try fileManager.copyItem(at: src.appendingPathComponent(name), to: dst.appendingPathComponent(name))
         }
     }
 
