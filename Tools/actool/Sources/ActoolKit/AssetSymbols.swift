@@ -133,7 +133,7 @@ public struct AssetSymbolGenerator {
 
     func imports() -> String {
         var s = "import Foundation\n"
-        if options.generateSwiftExtensions {
+        if options.generateSwiftExtensions || backDeploys {
             if options.frameworks.contains("AppKit") { s += "#if canImport(AppKit)\nimport AppKit\n#endif\n" }
             if options.frameworks.contains("UIKit") { s += "#if canImport(UIKit)\nimport UIKit\n#endif\n" }
             if options.frameworks.contains("SwiftUI") { s += "#if canImport(SwiftUI)\nimport SwiftUI\n#endif\n" }
@@ -180,7 +180,7 @@ public struct AssetSymbolGenerator {
                 out += "\(indent)}\n\n"
             } else if let s = symbol {
                 out += "\(indent)/// The \"\(s.name)\" asset catalog \(kind) resource.\n"
-                out += "\(indent)static let \(s.swift) = DeveloperToolsSupport.\(typeName)(name: \"\(s.name)\", bundle: resourceBundle)\n\n"
+                out += "\(indent)static let \(s.swift) = \(typePrefix)\(typeName)(name: \"\(s.name)\", bundle: resourceBundle)\n\n"
             }
         }
     }
@@ -190,18 +190,179 @@ public struct AssetSymbolGenerator {
         return upperFirstLetter(id.hasPrefix("`") ? String(id.dropFirst().dropLast()) : id)
     }
 
+    /// actool writes its own `ColorResource`/`ImageResource` (and initializers taking them) when the deployment
+    /// target predates DeveloperToolsSupport's (iOS/tvOS 17, macOS 14, watchOS 10); the symbols then use those.
+    var backDeploys: Bool {
+        switch options.backwardsDeployment?.uppercased() {
+        case "YES": return true
+        case "NO": return false
+        default: break
+        }
+        let major = Int(options.minimumDeploymentTarget.split(separator: ".").first ?? "") ?? 0
+        guard major > 0 else { return false }
+        let platform = options.platform.lowercased()
+        if platform.hasPrefix("macosx") { return major < 14 }
+        if platform.hasPrefix("watch") { return major < 10 }
+        if platform.hasPrefix("xr") { return false }
+        return major < 17  // iphoneos, iphonesimulator, appletvos, appletvsimulator
+    }
+
+    var typePrefix: String { backDeploys ? "" : "DeveloperToolsSupport." }
+
+    /// Availability attributes, keyed by what they annotate, for the two kinds of output.
+    func availability(_ key: String) -> String {
+        let modern: [String: String] = [
+            "colors": "iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0", "images": "iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0",
+            "NSColor": "macOS 14.0", "NSImage": "macOS 14.0", "UIKit": "iOS 17.0, tvOS 17.0",
+            "SwiftUI": "iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0",
+        ]
+        let back: [String: String] = [
+            "colors": "iOS 11.0, macOS 10.13, tvOS 11.0", "images": "iOS 11.0, macOS 10.7, tvOS 11.0",
+            "NSColor": "macOS 10.13", "NSImage": "macOS 10.7", "UIKit": "iOS 11.0, tvOS 11.0",
+            "SwiftUI": "iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0",
+        ]
+        return "@available(\((backDeploys ? back : modern)[key]!), *)"
+    }
+
     public func swiftSource() -> String {
         var out = imports()
-        let availability = "@available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *)"
-        out += "// MARK: - Color Symbols -\n\n\(availability)\nextension DeveloperToolsSupport.ColorResource {\n\n"
+        out += "// MARK: - Color Symbols -\n\n\(availability("colors"))\nextension \(typePrefix)ColorResource {\n\n"
         emitResources(tree(colors), kind: "color", typeName: "ColorResource", indent: "    ", out: &out)
         out += "}\n\n"
-        out += "// MARK: - Image Symbols -\n\n\(availability)\nextension DeveloperToolsSupport.ImageResource {\n\n"
+        out += "// MARK: - Image Symbols -\n\n\(availability("images"))\nextension \(typePrefix)ImageResource {\n\n"
         emitResources(tree(images + symbolImages), kind: "image", typeName: "ImageResource", indent: "    ", out: &out)
         out += "}\n\n"
         if options.generateSwiftExtensions {
             out += extensions()
         }
+        if backDeploys {
+            out += backwardsDeploymentSupport()
+        }
+        return out
+    }
+
+    // MARK: Backwards deployment (deployment target below iOS 17 / macOS 14 / tvOS 17 / watchOS 10)
+
+    static func resourceStruct(_ type: String, kind: String, article: String) -> String {
+        """
+        /// \(article.capitalized) \(kind) resource.
+        struct \(type): Swift.Hashable, Swift.Sendable {
+
+            /// An asset catalog \(kind) resource name.
+            fileprivate let name: Swift.String
+
+            /// An asset catalog \(kind) resource bundle.
+            fileprivate let bundle: Foundation.Bundle
+
+            /// Initialize \(article == "a" ? "a" : "an") `\(type)` with `name` and `bundle`.
+            init(name: Swift.String, bundle: Foundation.Bundle) {
+                self.name = name
+                self.bundle = bundle
+            }
+
+        }
+
+
+        """
+    }
+
+    func backwardsDeploymentSupport() -> String {
+        var out = "// MARK: - Backwards Deployment Support -\n\n"
+        out += Self.resourceStruct("ColorResource", kind: "color", article: "a")
+        out += Self.resourceStruct("ImageResource", kind: "image", article: "an")
+        var sections: [String] = []
+        if options.frameworks.contains("AppKit") {
+            sections.append("""
+            #if canImport(AppKit)
+            @available(macOS 10.13, *)
+            @available(macCatalyst, unavailable)
+            extension AppKit.NSColor {
+
+                /// Initialize a `NSColor` with a color resource.
+                convenience init(resource: ColorResource) {
+                    self.init(named: NSColor.Name(resource.name), bundle: resource.bundle)!
+                }
+
+            }
+
+            protocol _ACResourceInitProtocol {}
+            extension AppKit.NSImage: _ACResourceInitProtocol {}
+
+            @available(macOS 10.7, *)
+            @available(macCatalyst, unavailable)
+            extension _ACResourceInitProtocol {
+
+                /// Initialize a `NSImage` with an image resource.
+                init(resource: ImageResource) {
+                    self = resource.bundle.image(forResource: NSImage.Name(resource.name))! as! Self
+                }
+
+            }
+            #endif
+            """)
+        }
+        if options.frameworks.contains("UIKit") {
+            sections.append("""
+            #if canImport(UIKit)
+            @available(iOS 11.0, tvOS 11.0, *)
+            @available(watchOS, unavailable)
+            extension UIKit.UIColor {
+
+                /// Initialize a `UIColor` with a color resource.
+                convenience init(resource: ColorResource) {
+            #if !os(watchOS)
+                    self.init(named: resource.name, in: resource.bundle, compatibleWith: nil)!
+            #else
+                    self.init()
+            #endif
+                }
+
+            }
+
+            @available(iOS 11.0, tvOS 11.0, *)
+            @available(watchOS, unavailable)
+            extension UIKit.UIImage {
+
+                /// Initialize a `UIImage` with an image resource.
+                convenience init(resource: ImageResource) {
+            #if !os(watchOS)
+                    self.init(named: resource.name, in: resource.bundle, compatibleWith: nil)!
+            #else
+                    self.init()
+            #endif
+                }
+
+            }
+            #endif
+            """)
+        }
+        if options.frameworks.contains("SwiftUI") {
+            sections.append("""
+            #if canImport(SwiftUI)
+            @available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
+            extension SwiftUI.Color {
+
+                /// Initialize a `Color` with a color resource.
+                init(_ resource: ColorResource) {
+                    self.init(resource.name, bundle: resource.bundle)
+                }
+
+            }
+
+            @available(iOS 13.0, macOS 10.15, tvOS 13.0, watchOS 6.0, *)
+            extension SwiftUI.Image {
+
+                /// Initialize an `Image` with an image resource.
+                init(_ resource: ImageResource) {
+                    self.init(resource.name, bundle: resource.bundle)
+                }
+
+            }
+            #endif
+            """)
+        }
+        // actool separates the framework sections with a blank line and ends the file without a newline.
+        out += sections.joined(separator: "\n\n")
         return out
     }
 
@@ -257,19 +418,19 @@ public struct AssetSymbolGenerator {
         let colorTree = tree(colors)
         let imageTree = tree(images + symbolImages)
         if options.frameworks.contains("AppKit") {
-            out += "#if canImport(AppKit)\n@available(macOS 14.0, *)\n@available(macCatalyst, unavailable)\nextension AppKit.NSColor {\n\n"
+            out += "#if canImport(AppKit)\n\(availability("NSColor"))\n@available(macCatalyst, unavailable)\nextension AppKit.NSColor {\n\n"
             emitExtensionMembers(colorTree, kind: "color", type: "AppKit.NSColor", shortType: "NSColor", guardCondition: "!targetEnvironment(macCatalyst)", isColor: true, indent: "    ", out: &out)
             out += "}\n#endif\n\n"
         }
         if options.frameworks.contains("UIKit") {
-            out += "#if canImport(UIKit)\n@available(iOS 17.0, tvOS 17.0, *)\n@available(watchOS, unavailable)\nextension UIKit.UIColor {\n\n"
+            out += "#if canImport(UIKit)\n\(availability("UIKit"))\n@available(watchOS, unavailable)\nextension UIKit.UIColor {\n\n"
             emitExtensionMembers(colorTree, kind: "color", type: "UIKit.UIColor", shortType: "UIColor", guardCondition: "!os(watchOS)", isColor: true, indent: "    ", out: &out)
             out += "}\n#endif\n\n"
         }
         if options.frameworks.contains("SwiftUI") {
-            out += "#if canImport(SwiftUI)\n@available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *)\nextension SwiftUI.Color {\n\n"
+            out += "#if canImport(SwiftUI)\n\(availability("SwiftUI"))\nextension SwiftUI.Color {\n\n"
             emitExtensionMembers(colorTree, kind: "color", type: "SwiftUI.Color", shortType: "Color", guardCondition: "", isColor: true, indent: "    ", out: &out)
-            out += "}\n\n@available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *)\nextension SwiftUI.ShapeStyle where Self == SwiftUI.Color {\n\n"
+            out += "}\n\n\(availability("SwiftUI"))\nextension SwiftUI.ShapeStyle where Self == SwiftUI.Color {\n\n"
             // ShapeStyle only gets top-level colors that don't collide with SwiftUI.Color statics.
             let top = Node("")
             top.symbols = colorTree.symbols.filter { !(Self.reservedColor["Color"] ?? []).contains($0.swift) }
@@ -278,18 +439,18 @@ public struct AssetSymbolGenerator {
         }
         out += "// MARK: - Image Symbol Extensions -\n\n"
         if options.frameworks.contains("AppKit") {
-            out += "#if canImport(AppKit)\n@available(macOS 14.0, *)\n@available(macCatalyst, unavailable)\nextension AppKit.NSImage {\n\n"
+            out += "#if canImport(AppKit)\n\(availability("NSImage"))\n@available(macCatalyst, unavailable)\nextension AppKit.NSImage {\n\n"
             emitExtensionMembers(imageTree, kind: "image", type: "AppKit.NSImage", shortType: "NSImage", guardCondition: "!targetEnvironment(macCatalyst)", isColor: false, indent: "    ", out: &out)
             out += "}\n#endif\n\n"
         }
         if options.frameworks.contains("UIKit") {
-            out += "#if canImport(UIKit)\n@available(iOS 17.0, tvOS 17.0, *)\n@available(watchOS, unavailable)\nextension UIKit.UIImage {\n\n"
+            out += "#if canImport(UIKit)\n\(availability("UIKit"))\n@available(watchOS, unavailable)\nextension UIKit.UIImage {\n\n"
             emitExtensionMembers(imageTree, kind: "image", type: "UIKit.UIImage", shortType: "UIImage", guardCondition: "!os(watchOS)", isColor: false, indent: "    ", out: &out)
             out += "}\n#endif\n\n"
         }
         out += "// MARK: - Thinnable Asset Support -\n\n"
-        out += "@available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *)\n@available(watchOS, unavailable)\nextension DeveloperToolsSupport.ColorResource {\n\n    private init?(thinnableName: Swift.String, bundle: Foundation.Bundle) {\n#if canImport(AppKit) && os(macOS)\n        if AppKit.NSColor(named: NSColor.Name(thinnableName), bundle: bundle) != nil {\n            self.init(name: thinnableName, bundle: bundle)\n        } else {\n            return nil\n        }\n#elseif canImport(UIKit) && !os(watchOS)\n        if UIKit.UIColor(named: thinnableName, in: bundle, compatibleWith: nil) != nil {\n            self.init(name: thinnableName, bundle: bundle)\n        } else {\n            return nil\n        }\n#else\n        return nil\n#endif\n    }\n\n}\n\n"
-        out += "@available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, *)\n@available(watchOS, unavailable)\nextension DeveloperToolsSupport.ImageResource {\n\n    private init?(thinnableName: Swift.String, bundle: Foundation.Bundle) {\n#if canImport(AppKit) && os(macOS)\n        if bundle.image(forResource: NSImage.Name(thinnableName)) != nil {\n            self.init(name: thinnableName, bundle: bundle)\n        } else {\n            return nil\n        }\n#elseif canImport(UIKit) && !os(watchOS)\n        if UIKit.UIImage(named: thinnableName, in: bundle, compatibleWith: nil) != nil {\n            self.init(name: thinnableName, bundle: bundle)\n        } else {\n            return nil\n        }\n#else\n        return nil\n#endif\n    }\n\n}\n\n"
+        out += "\(availability("colors"))\n@available(watchOS, unavailable)\nextension \(typePrefix)ColorResource {\n\n    private init?(thinnableName: Swift.String, bundle: Foundation.Bundle) {\n#if canImport(AppKit) && os(macOS)\n        if AppKit.NSColor(named: NSColor.Name(thinnableName), bundle: bundle) != nil {\n            self.init(name: thinnableName, bundle: bundle)\n        } else {\n            return nil\n        }\n#elseif canImport(UIKit) && !os(watchOS)\n        if UIKit.UIColor(named: thinnableName, in: bundle, compatibleWith: nil) != nil {\n            self.init(name: thinnableName, bundle: bundle)\n        } else {\n            return nil\n        }\n#else\n        return nil\n#endif\n    }\n\n}\n\n"
+        out += "\(availability("images"))\n@available(watchOS, unavailable)\nextension \(typePrefix)ImageResource {\n\n    private init?(thinnableName: Swift.String, bundle: Foundation.Bundle) {\n#if canImport(AppKit) && os(macOS)\n        if bundle.image(forResource: NSImage.Name(thinnableName)) != nil {\n            self.init(name: thinnableName, bundle: bundle)\n        } else {\n            return nil\n        }\n#elseif canImport(UIKit) && !os(watchOS)\n        if UIKit.UIImage(named: thinnableName, in: bundle, compatibleWith: nil) != nil {\n            self.init(name: thinnableName, bundle: bundle)\n        } else {\n            return nil\n        }\n#else\n        return nil\n#endif\n    }\n\n}\n\n"
         return out
     }
 

@@ -82,6 +82,19 @@ final class CompileTests: XCTestCase {
         XCTAssertEqual(generator.objcHeader(), String(decoding: try reference("ios26", "GeneratedAssetSymbols.h"), as: UTF8.self))
     }
 
+    // Below iOS 17 actool defines its own ColorResource/ImageResource and the initializers that take them.
+    func testBackDeployedSymbolsMatchActool() throws {
+        let catalog = try AssetCatalog(url: Self.catalogURL)
+        var options = AssetSymbolOptions()
+        options.bundleIdentifier = "com.example.synth"
+        options.generateSwiftExtensions = false
+        options.platform = "iphoneos"
+        options.minimumDeploymentTarget = "15.0"
+        let generator = AssetSymbolGenerator(catalogs: [catalog], options: options)
+        XCTAssertEqual(generator.swiftSource(), String(decoding: try reference("ios15", "GeneratedAssetSymbols.swift"), as: UTF8.self))
+        XCTAssertEqual(generator.objcHeader(), String(decoding: try reference("ios15", "GeneratedAssetSymbols.h"), as: UTF8.self))
+    }
+
     func testColorsAreExact() throws {
         let car = try CARReader(XCTUnwrap(try compile(deploymentTarget: "26.0", appIcon: nil).car))
         let p3 = try XCTUnwrap(car.renditions(named: "Colors/c-p3").first?.color())
