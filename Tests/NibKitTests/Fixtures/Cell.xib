@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.XIB" version="3.0" toolsVersion="21701" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" colorMatched="YES">
+    <device id="retina6_12" orientation="portrait" appearance="light"/>
+    <dependencies>
+        <deployment identifier="iOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="21678"/>
+        <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
+    </dependencies>
+    <objects>
+        <placeholder placeholderIdentifier="IBFilesOwner" id="-1" userLabel="File's Owner"/>
+        <placeholder placeholderIdentifier="IBFirstResponder" id="-2" customClass="UIResponder"/>
+        <tableViewCell clipsSubviews="YES" contentMode="scaleToFill" selectionStyle="none" indentationWidth="10" rowHeight="120" id="cel-l0-001" customClass="SettingCell">
+            <rect key="frame" x="0.0" y="0.0" width="375" height="120"/>
+            <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMaxY="YES"/>
+            <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" tableViewCell="cel-l0-001" id="cnt-v0-001">
+                <rect key="frame" x="0.0" y="0.0" width="375" height="120"/>
+                <autoresizingMask key="autoresizingMask"/>
+                <subviews>
+                    <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Title" lineBreakMode="tailTruncation" numberOfLines="2" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-t0-001">
+                        <rect key="frame" x="16" y="8" width="280" height="20"/>
+                        <fontDescription key="fontDescription" type="system" pointSize="16"/>
+                        <color key="textColor" red="0.20000000000000001" green="0.40000000000000002" blue="0.59999999999999998" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        <nil key="highlightedColor"/>
+                    </label>
+                    <switch opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" contentHorizontalAlignment="center" contentVerticalAlignment="center" on="YES" translatesAutoresizingMaskIntoConstraints="NO" id="swt-s0-001">
+                        <rect key="frame" x="310" y="8" width="51" height="31"/>
+                    </switch>
+                    <textField opaque="NO" clipsSubviews="YES" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="center" borderStyle="roundedRect" placeholder="Value" minimumFontSize="17" clearButtonMode="whileEditing" translatesAutoresizingMaskIntoConstraints="NO" id="txt-f0-001">
+                        <rect key="frame" x="16" y="40" width="280" height="34"/>
+                        <fontDescription key="fontDescription" type="system" pointSize="14"/>
+                        <textInputTraits key="textInputTraits" autocorrectionType="no" keyboardType="numberPad" returnKeyType="done" enablesReturnKeyAutomatically="YES"/>
+                    </textField>
+                    <slider opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" value="0.25" minValue="0.0" maxValue="10" translatesAutoresizingMaskIntoConstraints="NO" id="sld-r0-001">
+                        <rect key="frame" x="14" y="80" width="200" height="31"/>
+                    </slider>
+                    <stepper opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" contentHorizontalAlignment="center" contentVerticalAlignment="center" maximumValue="10" translatesAutoresizingMaskIntoConstraints="NO" id="stp-r0-001">
+                        <rect key="frame" x="265" y="80" width="94" height="32"/>
+                    </stepper>
+                    <button opaque="NO" contentMode="scaleToFill" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="system" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="btn-r0-001">
+                        <rect key="frame" x="310" y="42" width="49" height="30"/>
+                        <state key="normal" title="Reset">
+                            <color key="titleShadowColor" red="0.5" green="0.5" blue="0.5" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
+                        </state>
+                        <state key="disabled" title="Done"/>
+                        <connections>
+                            <action selector="reset:" destination="cel-l0-001" eventType="touchUpInside" id="act-r0-001"/>
+                        </connections>
+                    </button>
+                </subviews>
+                <constraints>
+                    <constraint firstItem="lbl-t0-001" firstAttribute="leading" secondItem="cnt-v0-001" secondAttribute="leading" constant="16" id="c01-aa-001"/>
+                    <constraint firstItem="lbl-t0-001" firstAttribute="top" secondItem="cnt-v0-001" secondAttribute="top" constant="8" id="c02-aa-001"/>
+                    <constraint firstAttribute="trailing" secondItem="swt-s0-001" secondAttribute="trailing" constant="16" id="c03-aa-001"/>
+                    <constraint firstItem="swt-s0-001" firstAttribute="leading" relation="greaterThanOrEqual" secondItem="lbl-t0-001" secondAttribute="trailing" constant="8" id="c04-aa-001"/>
+                    <constraint firstItem="txt-f0-001" firstAttribute="top" secondItem="lbl-t0-001" secondAttribute="bottom" constant="12" id="c05-aa-001"/>
+                    <constraint firstItem="txt-f0-001" firstAttribute="leading" secondItem="lbl-t0-001" secondAttribute="leading" id="c06-aa-001"/>
+                    <constraint firstItem="sld-r0-001" firstAttribute="top" secondItem="txt-f0-001" secondAttribute="bottom" constant="6" priority="750" id="c07-aa-001"/>
+                    <constraint firstItem="sld-r0-001" firstAttribute="leading" secondItem="cnt-v0-001" secondAttribute="leadingMargin" id="c08-aa-001"/>
+                    <constraint firstAttribute="trailingMargin" secondItem="stp-r0-001" secondAttribute="trailing" id="c09-aa-001"/>
+                    <constraint firstItem="stp-r0-001" firstAttribute="centerY" secondItem="sld-r0-001" secondAttribute="centerY" id="c10-aa-001"/>
+                    <constraint firstItem="btn-r0-001" firstAttribute="centerY" secondItem="txt-f0-001" secondAttribute="centerY" id="c11-aa-001"/>
+                    <constraint firstItem="btn-r0-001" firstAttribute="trailing" secondItem="swt-s0-001" secondAttribute="trailing" id="c12-aa-001"/>
+                </constraints>
+            </tableViewCellContentView>
+            <connections>
+                <outlet property="resetButton" destination="btn-r0-001" id="out-r0-001"/>
+                <outlet property="slider" destination="sld-r0-001" id="out-r0-002"/>
+                <outlet property="stepper" destination="stp-r0-001" id="out-r0-003"/>
+                <outlet property="titleLabel" destination="lbl-t0-001" id="out-r0-004"/>
+                <outlet property="toggle" destination="swt-s0-001" id="out-r0-005"/>
+                <outlet property="valueField" destination="txt-f0-001" id="out-r0-006"/>
+            </connections>
+            <point key="canvasLocation" x="0.0" y="0.0"/>
+        </tableViewCell>
+    </objects>
+</document>

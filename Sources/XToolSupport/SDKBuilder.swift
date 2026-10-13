@@ -141,6 +141,8 @@ struct SDKBuilder {
         let iPhoneSimSDK = try sdk(platform: "iPhoneSimulator", prefix: "iPhoneSimulator")
         let macOSSDK = try sdk(platform: "MacOSX", prefix: "MacOSX")
 
+        try installInterfaceBuilderTool(in: dev)
+
         print("""
         - \(iPhoneOSSDK)
         - \(iPhoneSimSDK)
@@ -231,6 +233,25 @@ struct SDKBuilder {
 
         try Data("\(sdkVersion)\n".utf8)
             .write(to: output.appendingPathComponent("darwin-sdk-version.txt"))
+    }
+
+    /// SwiftBuild runs `ibtool` to compile .xib files and looks for it in each platform's
+    /// `Developer/usr/bin`. Link xtool-ibtool there when it was built next to xtool.
+    private func installInterfaceBuilderTool(in dev: URL) throws {
+        let executable = URL(fileURLWithPath: CommandLine.arguments[0]).resolvingSymlinksInPath()
+        let ibtool = executable.deletingLastPathComponent().appendingPathComponent("xtool-ibtool")
+        guard FileManager.default.isExecutableFile(atPath: ibtool.path) else {
+            print("[Skipping ibtool: \(ibtool.path) not found; xib files will not compile]")
+            return
+        }
+        for platform in ["iPhoneOS", "iPhoneSimulator"] {
+            let bin = dev.appendingPathComponent("Platforms/\(platform).platform/Developer/usr/bin")
+            try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+            let link = bin.appendingPathComponent("ibtool")
+            try? FileManager.default.removeItem(at: link)
+            try FileManager.default.createSymbolicLink(at: link, withDestinationURL: ibtool)
+        }
+        print("[Linked ibtool to \(ibtool.path)]")
     }
 
     // swiftlint:disable:next function_body_length
