@@ -25,7 +25,8 @@ jobs:
       - name: Build and test
         run: |
           docker compose run --build -e XTL_CI=1 xtool bash -c \
-            "swift build --product xtool && .build/debug/xtool --help && swift test"
+            "swift build --product xtool && .build/debug/xtool --help && swift test \
+            && swift test --package-path Tools/actool --build-system native"
   build-macos:
     runs-on: xcode-27
     steps:
@@ -38,6 +39,9 @@ jobs:
       - name: Run tests
         run: |
           swift test
+      - name: Run actool tests
+        run: |
+          swift test --package-path Tools/actool --build-system native
   build-ios:
     runs-on: xcode-27
     steps:
